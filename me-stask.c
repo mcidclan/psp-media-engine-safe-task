@@ -132,7 +132,7 @@ int meSafeTaskInitDispatcher() {
     case ME_CORE_BL_IMG_TABLE:
     case ME_CORE_SD_IMG_TABLE:
     default:
-      return -3;
+      return -4;
   }
   
   kcall(patchEdramRoutine, 0);

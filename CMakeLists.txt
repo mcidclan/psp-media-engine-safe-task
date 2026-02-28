@@ -4,6 +4,7 @@ project(me-stask C ASM)
 
 add_library(me-stask STATIC
   me-stask.c
+  patch.S
 )
 
 target_compile_options(me-stask PRIVATE 
