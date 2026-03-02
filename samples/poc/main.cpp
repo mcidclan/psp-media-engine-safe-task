@@ -47,7 +47,6 @@ int main() {
     sceCtrlPeekBufferPositive(&ctl, 1);
     
     pspDebugScreenSetXY(0, 0);
-    pspDebugScreenPrintf("hello");
     pspDebugScreenPrintf("proof0: %lx\n", data[0]);
     pspDebugScreenPrintf("proof1: %lx\n", data[1]);
     

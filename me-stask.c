@@ -82,11 +82,9 @@ static int triggerCustomProcess() {
   return 0;
 }
 
-
-Task* currentTask = NULL;
-
-static int setCurrentTask() {
+static int setCurrentTask(void* task) {
   
+  const Task* currentTask = (Task*)task;
   u32* param = (u32*)SYSCALL_PARAMS_BASE;
   param[0] = SYSCALL_CUSTOM_INDEX; // -1
   param[2] = (u32)(currentTask->func);
@@ -146,8 +144,7 @@ int meSafeTaskInitDispatcher() {
 
 int meSafeTaskDispatch(Task* const task) {
   
-  currentTask = task;
-  kcall(setCurrentTask, 0);
+  kcall(setCurrentTask, 0, task);
   kcall(triggerCustomProcess, 0);
   return 0;
 }
