@@ -15,11 +15,6 @@ patch:
     jal processPatchedSyscallRoutine
     lw $v0, 0x0($s3)
     
-    #nop
-    
-    #mtic $0, $0
-    #cfc0 $a1, $11
-    
     .set pop
     
 .end patch

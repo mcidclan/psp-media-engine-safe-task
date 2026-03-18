@@ -8,6 +8,9 @@ static volatile int step = 0;
 
 u32 EDRAM_ROUTINE_PATCH_ADDR = 0x8832162c;
 
+unsigned long long _nTask __attribute__((aligned(64))) = 0;
+unsigned long long* nTask __attribute__((aligned(64))) = NULL;
+
 static inline int selectTable() {
   
   const int tableId = meCoreGetTableIdFromWitnessWord();
@@ -40,11 +43,15 @@ void processPatchedSyscallRoutine() {
   
   meCoreEmitSoftwareInterrupt();
 
-  const u32* const syscall = (u32*)SYSCALL_PARAMS_BASE;
+  u32* const syscall = (u32*)SYSCALL_PARAMS_BASE;
   if (*syscall == SYSCALL_CUSTOM_INDEX) {
     const TaskFunc task = (TaskFunc)syscall[2];
     void* const param = (void* const)syscall[3];
+    // syscall[10] = (u32)task(param);
     task(param);
+    if (*nTask > 0) {
+      *nTask -= 1;
+    }
   }
 }
 
@@ -63,6 +70,16 @@ static int patchEdramRoutine() {
   memcpy((void*)target, (void*)&__start__mpatch_section, 8);
   sceKernelDcacheWritebackInvalidateRange((void*)target, 8);
   sceKernelIcacheInvalidateRange((void*)target, 8);
+  return 0;
+}
+
+static int waitTaskFinish() {
+  do {
+    if(!*nTask) {
+      return 1;
+    };
+    sceKernelDelayThread(1000);
+  } while(1);
   return 0;
 }
 
@@ -89,6 +106,7 @@ static int setCurrentTask(void* task) {
   param[0] = SYSCALL_CUSTOM_INDEX; // -1
   param[2] = (u32)(currentTask->func);
   param[3] = (u32)(currentTask->param);
+  *nTask += 1;
   sceKernelDcacheWritebackInvalidateRange(param, 16);
   sceKernelIcacheInvalidateRange(param, 16);
   return 0;
@@ -109,6 +127,8 @@ void checkReady(void* param) {
 }
 
 int meSafeTaskInitDispatcher() {
+  
+  nTask = (unsigned long long*)(0x40000000 | (u32)(&_nTask));
   
   sceKernelDcacheWritebackInvalidateAll();
   sceKernelIcacheInvalidateAll();
@@ -149,15 +169,20 @@ int meSafeTaskDispatch(Task* const task) {
   return 0;
 }
 
+void meSafeTaskWaitReady() {
+  kcall(waitTaskFinish, 0);
+}
+
+/*
 typedef struct {
   volatile u32 value;
   u8 _pad[60];
 } __attribute__((aligned(64))) TaskDispatcherState;
 
 void meSafeTaskWaitReady() {
- 
+
   static volatile TaskDispatcherState meSafeTaskDispatcherReady __attribute__((aligned(64))) = {0};
-  
+
   meSafeTaskDispatcherReady.value = 0;
   sceKernelDcacheWritebackInvalidateRange((void*)&meSafeTaskDispatcherReady, 4);
   
@@ -171,3 +196,4 @@ void meSafeTaskWaitReady() {
     sceKernelDcacheInvalidateRange((void*)&meSafeTaskDispatcherReady, 4);
   } while (!meSafeTaskDispatcherReady.value);
 }
+*/
