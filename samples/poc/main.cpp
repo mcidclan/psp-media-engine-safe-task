@@ -26,7 +26,7 @@ int main() {
   pspDebugScreenInit();
   const int error = meSafeTaskInitDispatcher();
   
-  if(error < 0) {
+  if (error < 0) {
     pspDebugScreenPrintf("cant't load kcall prx, error: %i", error);
     sceKernelDelayThread(1000000);
     sceKernelExitGame();
@@ -36,6 +36,7 @@ int main() {
   data[0] = 0x12345678;
   data[1] = 0;
   sceKernelDcacheWritebackInvalidateRange(data, 64);
+  
   Task meTask = {
     task, data
   };
@@ -47,8 +48,8 @@ int main() {
     sceCtrlPeekBufferPositive(&ctl, 1);
     
     pspDebugScreenSetXY(0, 0);
-    pspDebugScreenPrintf("proof0: %lx\n", data[0]);
-    pspDebugScreenPrintf("proof1: %lx\n", data[1]);
+    pspDebugScreenPrintf("proof0 (0x23456789): 0x%08lx\n", data[0]);
+    pspDebugScreenPrintf("proof1 (0x00001000): 0x%08lx\n", data[1]);
     
     sceDisplayWaitVblank();
     
