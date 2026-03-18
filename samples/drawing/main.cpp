@@ -6,8 +6,7 @@ PSP_MAIN_THREAD_ATTR(PSP_THREAD_ATTR_VFPU | PSP_THREAD_ATTR_USER);
 
 #define SHARED_BUF_SIZE 0x88000
 
-volatile u8 _SHARED_BUF[SHARED_BUF_SIZE*2] __attribute__((aligned(64))) = {0};
-volatile u8* SHARED_BUF __attribute__((aligned(64))) = nullptr;
+volatile u8 SHARED_BUF[SHARED_BUF_SIZE*2] __attribute__((aligned(64))) = {0};
 
 void switchBuf(u32* const buf) {
   *buf ^= SHARED_BUF_SIZE;
@@ -37,11 +36,8 @@ void scDrawing(u32* const buf) {
 }
 
 u32 initBuf() {
-  SHARED_BUF = (volatile u8*)(0x40000000 | (u32)_SHARED_BUF);
-  sceKernelDcacheWritebackInvalidateRange((void*)&SHARED_BUF, 4);
-  
-  u32 buf = (u32)SHARED_BUF;
-  pspDebugScreenInitEx((void*)(((u32)SHARED_BUF) ^ SHARED_BUF_SIZE),
+  const u32 buf = 0x40000000 | (u32)SHARED_BUF;
+  pspDebugScreenInitEx((void*)(buf ^ SHARED_BUF_SIZE),
     PSP_DISPLAY_PIXEL_FORMAT_8888, 1);
     
   return buf;
