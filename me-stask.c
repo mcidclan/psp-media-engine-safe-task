@@ -1,15 +1,17 @@
 #include "me-stask.h"
 
-static volatile int step = 0;
-
 #define SYSCALL_CUSTOM_INDEX        0x191
 #define SYSCALL_ROUTINE_PATCH_ADDR  0x883004bc
 #define SYSCALL_PARAMS_BASE         0xbfc00600
 
-u32 EDRAM_ROUTINE_PATCH_ADDR = 0x8832162c;
+u32 EDRAM_ROUTINE_PATCH_ADDR        = 0x8832162c;
+u32 INTERRUPT_HANDLER_PATCH_ADDR    = 0x8838c878;
 
-unsigned long long _nTask __attribute__((aligned(64))) = 0;
-unsigned long long* nTask __attribute__((aligned(64))) = NULL;
+unsigned long long _me_processing __attribute__((aligned(64))) = 0;
+unsigned long long* me_processing __attribute__((aligned(64))) = NULL;
+#define ME_PROCESSING (*me_processing)
+#define ME_COMMON_PROCESS (1 << 0)
+#define ME_CUSTOM_PROCESS (1 << 1)
 
 static inline int selectTable() {
   
@@ -25,6 +27,13 @@ extern char __start__patch_section[];
 extern char __stop__patch_section[];
 extern char __start__mpatch_section[];
 extern char __stop__mpatch_section[];
+extern char __start__ipatch_section[];
+extern char __stop__ipatch_section[];
+
+__attribute__((noinline, aligned(4)))
+void processPatchedInterruptHandlerRoutine() {
+  ME_PROCESSING |= ME_COMMON_PROCESS;
+}
 
 __attribute__((noinline, aligned(4)))
 int processPatchedEdramRoutine() {
@@ -45,14 +54,13 @@ void processPatchedSyscallRoutine() {
 
   u32* const syscall = (u32*)SYSCALL_PARAMS_BASE;
   if (*syscall == SYSCALL_CUSTOM_INDEX) {
+    
     const TaskFunc task = (TaskFunc)syscall[2];
     void* const param = (void* const)syscall[3];
-    // syscall[10] = (u32)task(param);
     task(param);
-    if (*nTask > 0) {
-      *nTask -= 1;
-    }
+    ME_PROCESSING &= ~ME_CUSTOM_PROCESS;
   }
+  ME_PROCESSING &= ~ME_COMMON_PROCESS;
 }
 
 static int patchSyscallRoutine() {
@@ -73,9 +81,19 @@ static int patchEdramRoutine() {
   return 0;
 }
 
-static int waitTaskFinish() {
+static int patchInterruptHandlerRoutine() {
+  
+  const u32 target = INTERRUPT_HANDLER_PATCH_ADDR;
+  memcpy((void*)target, (void*)&__start__ipatch_section, 8);
+  sceKernelDcacheWritebackInvalidateRange((void*)target, 8);
+  sceKernelIcacheInvalidateRange((void*)target, 8);
+  return 0;
+}
+
+static int waitMeReady() {
+  
   do {
-    if(!*nTask) {
+    if (!ME_PROCESSING) {
       return 1;
     };
     sceKernelDelayThread(1000);
@@ -106,29 +124,16 @@ static int setCurrentTask(void* task) {
   param[0] = SYSCALL_CUSTOM_INDEX; // -1
   param[2] = (u32)(currentTask->func);
   param[3] = (u32)(currentTask->param);
-  *nTask += 1;
+
+  ME_PROCESSING |= ME_CUSTOM_PROCESS;
   sceKernelDcacheWritebackInvalidateRange(param, 16);
   sceKernelIcacheInvalidateRange(param, 16);
   return 0;
 }
 
-__attribute__((noinline, aligned(4)))
-void checkReady(void* param) {
-  
-  if (param) {
-    
-    u32* const meSafeTaskDispatcherReady = (u32* const)param;
-    meCoreDcacheInvalidateRange(&meSafeTaskDispatcherReady[0], 64);
-    //const u32 intr = meCoreInterruptClearMask();
-    meSafeTaskDispatcherReady[0] = 1;
-    //meCoreInterruptSetMask(intr);
-    meCoreDcacheWritebackRange(&meSafeTaskDispatcherReady[0], 64);
-  }
-}
-
 int meSafeTaskInitDispatcher() {
   
-  nTask = (unsigned long long*)(0x40000000 | (u32)(&_nTask));
+  me_processing = (unsigned long long*)(0x40000000 | (u32)(&_me_processing));
   
   sceKernelDcacheWritebackInvalidateAll();
   sceKernelIcacheInvalidateAll();
@@ -141,20 +146,28 @@ int meSafeTaskInitDispatcher() {
   switch(table) {
     
     case ME_CORE_T2_IMG_TABLE:
-      EDRAM_ROUTINE_PATCH_ADDR = 0x8832162c;
+      EDRAM_ROUTINE_PATCH_ADDR     = 0x8832162c;
+      INTERRUPT_HANDLER_PATCH_ADDR = 0x8838c780;
       break;
     case ME_CORE_IMG_TABLE:
-      EDRAM_ROUTINE_PATCH_ADDR = 0x88312f4c;
+      EDRAM_ROUTINE_PATCH_ADDR     = 0x88312f4c;
+      INTERRUPT_HANDLER_PATCH_ADDR = 0x8837b1c0;
       break;
-      
     case ME_CORE_BL_IMG_TABLE:
+      //EDRAM_ROUTINE_PATCH_ADDR        = ;
+      //ME_INTERRUPT_HANDLER_PATCH_ADDR = ;//0x883316f8;
+      break;
     case ME_CORE_SD_IMG_TABLE:
+      //EDRAM_ROUTINE_PATCH_ADDR        = ;
+      //ME_INTERRUPT_HANDLER_PATCH_ADDR = ;//0x8832e138;
+      break;
     default:
       return -4;
   }
   
   kcall(patchEdramRoutine, 0);
   kcall(patchSyscallRoutine, 0);
+  kcall(patchInterruptHandlerRoutine, 0);
   
   sceUtilityLoadAvModule(PSP_AV_MODULE_AVCODEC);
   sceUtilityLoadAvModule(PSP_AV_MODULE_ATRAC3PLUS);
@@ -170,10 +183,25 @@ int meSafeTaskDispatch(Task* const task) {
 }
 
 void meSafeTaskWaitReady() {
-  kcall(waitTaskFinish, 0);
+  kcall(waitMeReady, 0);
 }
 
+
 /*
+__attribute__((noinline, aligned(4)))
+void checkReady(void* param) {
+  
+  if (param) {
+    
+    u32* const meSafeTaskDispatcherReady = (u32* const)param;
+    meCoreDcacheInvalidateRange(&meSafeTaskDispatcherReady[0], 64);
+    //const u32 intr = meCoreInterruptClearMask();
+    meSafeTaskDispatcherReady[0] = 1;
+    //meCoreInterruptSetMask(intr);
+    meCoreDcacheWritebackRange(&meSafeTaskDispatcherReady[0], 64);
+  }
+}
+
 typedef struct {
   volatile u32 value;
   u8 _pad[60];
