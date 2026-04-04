@@ -90,15 +90,14 @@ static int patchInterruptHandlerRoutine() {
   return 0;
 }
 
-static int waitMeReady() {
+static void waitMeReady() {
   
   do {
     if (!ME_PROCESSING) {
-      return 1;
+      break;
     };
     sceKernelDelayThread(1000);
   } while(1);
-  return 0;
 }
 
 static inline void triggerSysCall(const u32 index) {
@@ -183,45 +182,5 @@ int meSafeTaskDispatch(Task* const task) {
 }
 
 void meSafeTaskWaitReady() {
-  kcall(waitMeReady, 0);
+  waitMeReady();
 }
-
-
-/*
-__attribute__((noinline, aligned(4)))
-void checkReady(void* param) {
-  
-  if (param) {
-    
-    u32* const meSafeTaskDispatcherReady = (u32* const)param;
-    meCoreDcacheInvalidateRange(&meSafeTaskDispatcherReady[0], 64);
-    //const u32 intr = meCoreInterruptClearMask();
-    meSafeTaskDispatcherReady[0] = 1;
-    //meCoreInterruptSetMask(intr);
-    meCoreDcacheWritebackRange(&meSafeTaskDispatcherReady[0], 64);
-  }
-}
-
-typedef struct {
-  volatile u32 value;
-  u8 _pad[60];
-} __attribute__((aligned(64))) TaskDispatcherState;
-
-void meSafeTaskWaitReady() {
-
-  static volatile TaskDispatcherState meSafeTaskDispatcherReady __attribute__((aligned(64))) = {0};
-
-  meSafeTaskDispatcherReady.value = 0;
-  sceKernelDcacheWritebackInvalidateRange((void*)&meSafeTaskDispatcherReady, 4);
-  
-  Task meTask = {
-    checkReady, (void*)&meSafeTaskDispatcherReady
-  };
-  meSafeTaskDispatch(&meTask);
-  
-  do {
-    sceKernelDelayThread(1000);
-    sceKernelDcacheInvalidateRange((void*)&meSafeTaskDispatcherReady, 4);
-  } while (!meSafeTaskDispatcherReady.value);
-}
-*/
