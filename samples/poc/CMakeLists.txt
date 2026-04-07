@@ -16,7 +16,7 @@ target_compile_options(me-stask-demo PRIVATE
 
 target_link_libraries(me-stask-demo
   -Wl,--start-group me-core me-stask -Wl,--end-group
-  psppower pspge pspdisplay pspctrl pspdebug
+  psppower pspge pspdisplay pspctrl pspdebug pspkubridge
 )
 
 create_pbp_file(TARGET me-stask-demo TITLE "Me Safe Task Demo" BUILD_PRX)
