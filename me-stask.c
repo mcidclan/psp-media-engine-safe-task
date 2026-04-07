@@ -1,4 +1,5 @@
 #include "me-stask.h"
+#include <kubridge.h>
 
 #define SYSCALL_CUSTOM_INDEX        0x191
 #define SYSCALL_ROUTINE_PATCH_ADDR  0x883004bc
@@ -12,6 +13,24 @@ unsigned long long* me_processing __attribute__((aligned(64))) = NULL;
 #define ME_PROCESSING (*me_processing)
 #define ME_COMMON_PROCESS (1 << 0)
 #define ME_CUSTOM_PROCESS (1 << 1)
+
+#define _F(_1,_2,_3,NAME,...) NAME
+#define kCall(...) _F(__VA_ARGS__, kCall_3, kCall_2, ~)(__VA_ARGS__)
+  
+static int kCall(FCall const f, const unsigned int seg) {
+  struct KernelCallArg args;
+  const unsigned int addr = (seg | (unsigned int)f);
+  sceKernelIcacheInvalidateAll();
+  return kuKernelCall((void*)addr, &args);
+}
+
+static int kCall(FPCall const f, const unsigned int seg, void* const param) {
+  struct KernelCallArg args;
+  args.arg1 = (u32)param;
+  const unsigned int addr = (seg | (unsigned int)f);
+  sceKernelIcacheInvalidateAll();
+  return kuKernelCall((void*)addr, &args);
+}
 
 static inline int selectTable() {
   
@@ -137,11 +156,11 @@ int meSafeTaskInitDispatcher() {
   sceKernelDcacheWritebackInvalidateAll();
   sceKernelIcacheInvalidateAll();
 
-  if(meLibLoadPrx() < 0) {
-    return -3;
-  }
+  // if(meLibLoadPrx() < 0) {
+  //  return -3;
+  // }
   
-  const int table = kcall(selectTable, 0);
+  const int table = kCall(selectTable, 0);
   switch(table) {
     
     case ME_CORE_T2_IMG_TABLE:
@@ -164,9 +183,9 @@ int meSafeTaskInitDispatcher() {
       return -4;
   }
   
-  kcall(patchEdramRoutine, 0);
-  kcall(patchSyscallRoutine, 0);
-  kcall(patchInterruptHandlerRoutine, 0);
+  kCall(patchEdramRoutine, 0);
+  kCall(patchSyscallRoutine, 0);
+  kCall(patchInterruptHandlerRoutine, 0);
   
   sceUtilityLoadAvModule(PSP_AV_MODULE_AVCODEC);
   sceUtilityLoadAvModule(PSP_AV_MODULE_ATRAC3PLUS);
@@ -176,8 +195,8 @@ int meSafeTaskInitDispatcher() {
 
 int meSafeTaskDispatch(Task* const task) {
   
-  kcall(setCurrentTask, 0, task);
-  kcall(triggerCustomProcess, 0);
+  kCall(setCurrentTask, 0, task);
+  kCall(triggerCustomProcess, 0);
   return 0;
 }
 
