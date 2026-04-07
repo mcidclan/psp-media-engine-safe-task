@@ -7,9 +7,11 @@
 u32 EDRAM_ROUTINE_PATCH_ADDR        = 0x8832162c;
 u32 INTERRUPT_HANDLER_PATCH_ADDR    = 0x8838c878;
 
-unsigned long long _me_processing __attribute__((aligned(64))) = 0;
-unsigned long long* me_processing __attribute__((aligned(64))) = NULL;
-#define ME_PROCESSING (*me_processing)
+//unsigned long long _me_processing __attribute__((aligned(64))) = 0;
+//unsigned long long* me_processing __attribute__((aligned(64))) = NULL;
+//#define ME_PROCESSING (*me_processing)
+
+unsigned long long ME_PROCESSING __attribute__((aligned(64))) = 0;
 #define ME_COMMON_PROCESS (1 << 0)
 #define ME_CUSTOM_PROCESS (1 << 1)
 
@@ -32,6 +34,7 @@ extern char __stop__ipatch_section[];
 
 __attribute__((noinline, aligned(4)))
 void processPatchedInterruptHandlerRoutine() {
+  meLibDcacheInvalidateRange((u32Me)&ME_PROCESSING, 64);
   ME_PROCESSING |= ME_COMMON_PROCESS;
 }
 
@@ -49,8 +52,6 @@ int processPatchedEdramRoutine() {
 
 __attribute__((noinline, aligned(4)))
 void processPatchedSyscallRoutine() {
-  
-  meCoreEmitSoftwareInterrupt();
 
   u32* const syscall = (u32*)SYSCALL_PARAMS_BASE;
   if (*syscall == SYSCALL_CUSTOM_INDEX) {
@@ -61,6 +62,9 @@ void processPatchedSyscallRoutine() {
     ME_PROCESSING &= ~ME_CUSTOM_PROCESS;
   }
   ME_PROCESSING &= ~ME_COMMON_PROCESS;
+
+  meLibDcacheWritebackRange((u32Me)&ME_PROCESSING, 64);
+  meCoreEmitSoftwareInterrupt();
 }
 
 static int patchSyscallRoutine() {
@@ -90,22 +94,27 @@ static int patchInterruptHandlerRoutine() {
   return 0;
 }
 
-static void waitMeReady() {
+static int waitMeReady() {
   
   do {
-    if (!ME_PROCESSING) {
-      break;
-    };
+    sceKernelDcacheInvalidateRange(&ME_PROCESSING, 64);
     sceKernelDelayThread(1000);
-  } while(1);
+  } while (ME_PROCESSING);
+  return 0;
 }
 
 static inline void triggerSysCall(const u32 index) {
   
   hw(SYSCALL_PARAMS_BASE) = index;
-  hw(0xbd000004) |= 5;
+  hw(0xbd000004) = 5;
   meLibSync();
   hw(0xbc100044) = 1;
+  meLibSync();
+  
+  //while (!(ME_PROCESSING & ME_COMMON_PROCESS)) {
+  //}
+
+  hw(0xbd000004) = 8;
   meLibSync();
 }
 
@@ -125,6 +134,8 @@ static int setCurrentTask(void* task) {
   param[3] = (u32)(currentTask->param);
 
   ME_PROCESSING |= ME_CUSTOM_PROCESS;
+  sceKernelDcacheWritebackRange(&ME_PROCESSING, 8);
+  
   sceKernelDcacheWritebackInvalidateRange(param, 16);
   sceKernelIcacheInvalidateRange(param, 16);
   return 0;
@@ -132,7 +143,7 @@ static int setCurrentTask(void* task) {
 
 int meSafeTaskInitDispatcher() {
   
-  me_processing = (unsigned long long*)(0x40000000 | (u32)(&_me_processing));
+  //me_processing = (unsigned long long*)(0x40000000 | (u32)(&_me_processing));
   
   sceKernelDcacheWritebackInvalidateAll();
   sceKernelIcacheInvalidateAll();
@@ -182,5 +193,5 @@ int meSafeTaskDispatch(Task* const task) {
 }
 
 void meSafeTaskWaitReady() {
-  waitMeReady();
+  kcall(waitMeReady, 0);
 }

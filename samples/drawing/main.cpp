@@ -59,7 +59,7 @@ int main() {
     sceCtrlPeekBufferPositive(&ctl, 1);
     
     pspDebugScreenSetXY(0, 0);
-    pspDebugScreenPrintf("Shared Drawing Buffer: %lx", (u32)buf);
+    pspDebugScreenPrintf("Shared Drawing Buffer: %lx\n", (u32)buf);
     
     meDrawing(&buf);
     scDrawing(&buf);
