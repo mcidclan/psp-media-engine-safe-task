@@ -14,6 +14,13 @@ target_compile_options(me-stask PRIVATE
   -fno-pic
 )
 
+if(PRX_FREE)
+  message(STATUS "PRX_FREE enabled")
+  target_compile_definitions(me-stask PRIVATE PRX_FREE)
+else()
+  message(STATUS "PRX_FREE disabled")
+endif()
+
 target_include_directories(me-stask PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
 )
