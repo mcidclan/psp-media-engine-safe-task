@@ -34,8 +34,11 @@ extern char __stop__ipatch_section[];
 
 __attribute__((noinline, aligned(4)))
 void processPatchedInterruptHandlerRoutine() {
+  const u32 intr = meCoreInterruptClearMask();
   meLibDcacheInvalidateRange((u32Me)&ME_PROCESSING, 64);
   ME_PROCESSING |= ME_COMMON_PROCESS;
+  meLibDcacheWritebackRange((u32Me)&ME_PROCESSING, 64);
+  meCoreInterruptSetMask(intr);
 }
 
 __attribute__((noinline, aligned(4)))
@@ -67,30 +70,35 @@ void processPatchedSyscallRoutine() {
   meCoreEmitSoftwareInterrupt();
 }
 
-static int patchSyscallRoutine() {
+static inline void patchSyscallRoutine() {
   
   const u32 target = SYSCALL_ROUTINE_PATCH_ADDR;
   memcpy((void*)target, (void*)&__start__patch_section, 8);
   sceKernelDcacheWritebackInvalidateRange((void*)target, 8);
   sceKernelIcacheInvalidateRange((void*)target, 8);
-  return 0;
 }
 
-static int patchEdramRoutine() {
+static inline void patchEdramRoutine() {
   
   const u32 target = EDRAM_ROUTINE_PATCH_ADDR;
   memcpy((void*)target, (void*)&__start__mpatch_section, 8);
   sceKernelDcacheWritebackInvalidateRange((void*)target, 8);
   sceKernelIcacheInvalidateRange((void*)target, 8);
-  return 0;
 }
 
-static int patchInterruptHandlerRoutine() {
+static inline void patchInterruptHandlerRoutine() {
   
   const u32 target = INTERRUPT_HANDLER_PATCH_ADDR;
   memcpy((void*)target, (void*)&__start__ipatch_section, 8);
   sceKernelDcacheWritebackInvalidateRange((void*)target, 8);
   sceKernelIcacheInvalidateRange((void*)target, 8);
+}
+
+int patchMeCore() {
+  
+  patchEdramRoutine();
+  patchSyscallRoutine();
+  patchInterruptHandlerRoutine();
   return 0;
 }
 
@@ -118,14 +126,13 @@ static inline void triggerSysCall(const u32 index) {
   meLibSync();
 }
 
-static int triggerCustomProcess() {
+static inline void triggerCustomProcess() {
   
   const u32 index = hw(SYSCALL_PARAMS_BASE);
   triggerSysCall(index);
-  return 0;
 }
 
-static int setCurrentTask(void* task) {
+static inline void setCurrentTask(void* task) {
   
   const Task* currentTask = (Task*)task;
   u32* param = (u32*)SYSCALL_PARAMS_BASE;
@@ -138,6 +145,12 @@ static int setCurrentTask(void* task) {
   
   sceKernelDcacheWritebackInvalidateRange(param, 16);
   sceKernelIcacheInvalidateRange(param, 16);
+}
+
+static int dispatchTask(void* task) {
+  
+  setCurrentTask(task);
+  triggerCustomProcess();
   return 0;
 }
 
@@ -152,7 +165,7 @@ int meSafeTaskInitDispatcher() {
     return -3;
   }
   
-  const int table = kcall(selectTable, 0);
+  const int table = kcall(selectTable, CACHED_KERNEL_MASK);
   switch(table) {
     
     case ME_CORE_T2_IMG_TABLE:
@@ -175,9 +188,7 @@ int meSafeTaskInitDispatcher() {
       return -4;
   }
   
-  kcall(patchEdramRoutine, 0);
-  kcall(patchSyscallRoutine, 0);
-  kcall(patchInterruptHandlerRoutine, 0);
+  kcall(patchMeCore, CACHED_KERNEL_MASK);
   
   sceUtilityLoadAvModule(PSP_AV_MODULE_AVCODEC);
   sceUtilityLoadAvModule(PSP_AV_MODULE_ATRAC3PLUS);
@@ -186,12 +197,11 @@ int meSafeTaskInitDispatcher() {
 }
 
 int meSafeTaskDispatch(Task* const task) {
-  
-  kcall(setCurrentTask, 0, task);
-  kcall(triggerCustomProcess, 0);
+  kcall(dispatchTask, CACHED_KERNEL_MASK, task);
   return 0;
 }
 
 void meSafeTaskWaitReady() {
-  kcall(waitMeReady, 0);
+  kcall(waitMeReady, CACHED_KERNEL_MASK);
+  // waitMeReady();
 }
