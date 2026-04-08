@@ -34,10 +34,11 @@ extern char __stop__ipatch_section[];
 
 __attribute__((noinline, aligned(4)))
 void processPatchedInterruptHandlerRoutine() {
+  
   const u32 intr = meCoreInterruptClearMask();
-  meLibDcacheInvalidateRange((u32Me)&ME_PROCESSING, 64);
+  meCoreDcacheInvalidateRange((void*)&ME_PROCESSING, 8);
   ME_PROCESSING |= ME_COMMON_PROCESS;
-  meLibDcacheWritebackRange((u32Me)&ME_PROCESSING, 64);
+  meCoreDcacheWritebackRange((void*)&ME_PROCESSING, 8);
   meCoreInterruptSetMask(intr);
 }
 
@@ -62,11 +63,15 @@ void processPatchedSyscallRoutine() {
     const TaskFunc task = (TaskFunc)syscall[2];
     void* const param = (void* const)syscall[3];
     task(param);
-    ME_PROCESSING &= ~ME_CUSTOM_PROCESS;
+    //ME_PROCESSING &= ~ME_CUSTOM_PROCESS;
   }
-  ME_PROCESSING &= ~ME_COMMON_PROCESS;
+  //ME_PROCESSING &= ~ME_COMMON_PROCESS;
 
-  meLibDcacheWritebackRange((u32Me)&ME_PROCESSING, 64);
+  const u32 intr = meCoreInterruptClearMask();
+  ME_PROCESSING = 0;
+  meCoreDcacheWritebackRange((void*)&ME_PROCESSING, 8);
+  meCoreInterruptSetMask(intr);
+
   meCoreEmitSoftwareInterrupt();
 }
 
@@ -103,11 +108,26 @@ int patchMeCore() {
 }
 
 static int waitMeReady() {
-  
-  do {
-    sceKernelDcacheInvalidateRange(&ME_PROCESSING, 64);
+
+  int intr, out = 0;
+  while (1) {
+    
+    intr = sceKernelCpuSuspendIntr();
+    sceKernelDcacheInvalidateRange(&ME_PROCESSING, 8);
+    if (!ME_PROCESSING || (++out > 1000)) { // temporary fix for standby
+      break;
+    }
+    sceKernelCpuResumeIntrWithSync(intr);
+    
     sceKernelDelayThread(1000);
-  } while (ME_PROCESSING);
+    // meLibDelayPipeline();
+  }
+  
+  intr = sceKernelCpuSuspendIntr();
+  ME_PROCESSING = 0;
+  sceKernelDcacheWritebackRange(&ME_PROCESSING, 8);
+  sceKernelCpuResumeIntrWithSync(intr);
+  
   return 0;
 }
 
@@ -140,9 +160,11 @@ static inline void setCurrentTask(void* task) {
   param[2] = (u32)(currentTask->func);
   param[3] = (u32)(currentTask->param);
 
+  int intr = sceKernelCpuSuspendIntr();
   ME_PROCESSING |= ME_CUSTOM_PROCESS;
   sceKernelDcacheWritebackRange(&ME_PROCESSING, 8);
-  
+  sceKernelCpuResumeIntrWithSync(intr);
+
   sceKernelDcacheWritebackInvalidateRange(param, 16);
   sceKernelIcacheInvalidateRange(param, 16);
 }
@@ -197,11 +219,12 @@ int meSafeTaskInitDispatcher() {
 }
 
 int meSafeTaskDispatch(Task* const task) {
+  
   kcall(dispatchTask, CACHED_KERNEL_MASK, task);
   return 0;
 }
 
 void meSafeTaskWaitReady() {
+  
   kcall(waitMeReady, CACHED_KERNEL_MASK);
-  // waitMeReady();
 }
