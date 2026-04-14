@@ -7,7 +7,9 @@
 u32 EDRAM_ROUTINE_PATCH_ADDR        = 0x8832162c;
 u32 INTERRUPT_HANDLER_PATCH_ADDR    = 0x8838c878;
 
-unsigned long long ME_PROCESSING __attribute__((aligned(64))) = 0;
+unsigned int _ME_SHARED_MEM[16] __attribute__((aligned(64))) = {0};
+
+#define ME_PROCESSING (*_ME_SHARED_MEM)
 #define ME_COMMON_PROCESS (1 << 0)
 #define ME_CUSTOM_PROCESS (1 << 1)
 
@@ -61,9 +63,9 @@ __attribute__((noinline, aligned(4)))
 void processPatchedInterruptHandlerRoutine() {
   
   const u32 intr = meCoreInterruptClearMask();
-  meCoreDcacheInvalidateRange((void*)&ME_PROCESSING, 8);
+  meCoreDcacheInvalidateRange((void*)&ME_PROCESSING, 64);
   ME_PROCESSING |= ME_COMMON_PROCESS;
-  meCoreDcacheWritebackRange((void*)&ME_PROCESSING, 8);
+  meCoreDcacheWritebackRange((void*)&ME_PROCESSING, 64);
   meCoreInterruptSetMask(intr);
 }
 
@@ -92,7 +94,7 @@ void processPatchedSyscallRoutine() {
 
   const u32 intr = meCoreInterruptClearMask();
   ME_PROCESSING = 0;
-  meCoreDcacheWritebackRange((void*)&ME_PROCESSING, 8);
+  meCoreDcacheWritebackRange((void*)&ME_PROCESSING, 64);
   meCoreInterruptSetMask(intr);
 
   meCoreEmitSoftwareInterrupt();
@@ -136,8 +138,8 @@ static int waitMeReady() {
   while (1) {
     
     intr = sceKernelCpuSuspendIntr();
-    sceKernelDcacheInvalidateRange(&ME_PROCESSING, 8);
-    if (!ME_PROCESSING || (++out > 1000)) { // temporary fix for standby
+    sceKernelDcacheInvalidateRange(&ME_PROCESSING, 64);
+    if (!ME_PROCESSING || (++out > 500)) { // temporary fix for standby
       break;
     }
     sceKernelCpuResumeIntrWithSync(intr);
@@ -148,7 +150,7 @@ static int waitMeReady() {
   
   intr = sceKernelCpuSuspendIntr();
   ME_PROCESSING = 0;
-  sceKernelDcacheWritebackRange(&ME_PROCESSING, 8);
+  sceKernelDcacheWritebackRange(&ME_PROCESSING, 64);
   sceKernelCpuResumeIntrWithSync(intr);
   
   return 0;
@@ -185,7 +187,7 @@ static inline void setCurrentTask(void* task) {
 
   int intr = sceKernelCpuSuspendIntr();
   ME_PROCESSING |= ME_CUSTOM_PROCESS;
-  sceKernelDcacheWritebackRange(&ME_PROCESSING, 8);
+  sceKernelDcacheWritebackRange(&ME_PROCESSING, 64);
   sceKernelCpuResumeIntrWithSync(intr);
 
   sceKernelDcacheWritebackInvalidateRange(param, 16);
