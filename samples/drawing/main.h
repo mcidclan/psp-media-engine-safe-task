@@ -2,6 +2,8 @@
 
 #include <pspctrl.h>
 #include <pspdisplay.h>
+#include <pspkernel.h>
+#include <psppower.h>
 #include <me-safe-task/me-stask.h>
 
 template<typename T>

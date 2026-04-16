@@ -14,7 +14,27 @@ unsigned int _ME_SHARED_MEM[16] __attribute__((aligned(64))) = {0};
 #define ME_CUSTOM_PROCESS (1 << 1)
 
 #if defined(PRX_FREE) && PRX_FREE
+  #include <me-core-mapper/kernel/kcall.h>
   #include <kubridge.h>
+  #include <string.h>
+
+  static void meLibIcacheInvalidateAll() {
+    asm volatile ("sync");
+    for (int i = 0; i < 8192; i += 64) {
+      asm volatile(
+          ".set push         \n"
+          ".set noreorder    \n"
+          "cache 0x04, 0(%0) \n"
+          "cache 0x04, 0(%0) \n"
+          ".set pop         \n"
+          :: "r"(i)
+          : "memory"
+      );
+    }
+    asm volatile ("sync");
+  }
+
+  #define meLibSync()                       asm volatile("sync")
 
   #define _F(_1,_2,_3,NAME,...) NAME
   #define kCall(...) _F(__VA_ARGS__, kCall_3, kCall_2, ~)(__VA_ARGS__)
@@ -38,7 +58,7 @@ unsigned int _ME_SHARED_MEM[16] __attribute__((aligned(64))) = {0};
     return args.ret1;
 }
 #else
-
+  #include <me-core-mapper/me-lib.h>
   #define kCall kcall
 #endif
 

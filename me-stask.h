@@ -2,7 +2,6 @@
 #define ME_SAFE_STACK_H
 
 #include <me-core-mapper/me-core-mapper.h>
-#include <me-core-mapper/me-lib.h>
 
 #include <pspaudiocodec.h>
 #include <psputility_avmodules.h>

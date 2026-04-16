@@ -1,5 +1,9 @@
 #include <pspctrl.h>
 #include <pspdisplay.h>
+#include <pspkernel.h>
+#include <psppower.h>
+#include <malloc.h>
+
 #include <me-safe-task/me-stask.h>
 
 PSP_MODULE_INFO("stask-demo", 0, 1, 1);
