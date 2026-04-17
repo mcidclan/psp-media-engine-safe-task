@@ -1,10 +1,7 @@
-#ifndef ME_SAFE_STACK_H
-#define ME_SAFE_STACK_H
+#ifndef ME_SAFE_TASK_H
+#define ME_SAFE_TASK_H
 
 #include <me-core-mapper/me-core-mapper.h>
-
-#include <pspaudiocodec.h>
-#include <psputility_avmodules.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,8 +19,10 @@ int meSafeTaskDispatch(Task* const);
 void meSafeTaskWaitReady();
 void meSafeLoadModule();
 void meSafeUnloadModule();
+
 #ifdef __cplusplus
 }
 #endif
+
 
 #endif

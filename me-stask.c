@@ -1,4 +1,6 @@
 #include "me-stask.h"
+#include <pspaudiocodec.h>
+#include <psputility_avmodules.h>
 
 #define SYSCALL_CUSTOM_INDEX        0x191
 #define SYSCALL_ROUTINE_PATCH_ADDR  0x883004bc
@@ -47,33 +49,37 @@ static void meSafeMemcpy(void *dst, const void *src, unsigned int size) {
 }
 
 #if defined(PRX_FREE) && PRX_FREE
-  #include <me-core-mapper/kernel/kcall.h>
-  #include <kubridge.h>
 
-  #define _F(_1,_2,_3,NAME,...) NAME
-  #define kCall(...) _F(__VA_ARGS__, kCall_3, kCall_2, ~)(__VA_ARGS__)
-    
-  static int kCall(FCall const f, const unsigned int seg) {
-    
-    struct KernelCallArg args;
-    const unsigned int addr = (seg | (unsigned int)f);
-    sceKernelIcacheInvalidateAll();
-    kuKernelCall((void*)addr, &args);
-    return args.ret1;
-  }
+#include <me-core-mapper/kernel/kcall.h>
+#include <kubridge.h>
 
-  static int kCall(FPCall const f, const unsigned int seg, void* const param) {
-    
-    struct KernelCallArg args;
-    args.arg1 = (u32)param;
-    const unsigned int addr = (seg | (unsigned int)f);
-    sceKernelIcacheInvalidateAll();
-    kuKernelCall((void*)addr, &args);
-    return args.ret1;
+#define _F(_1,_2,_3,NAME,...) NAME
+#define kCall(...) _F(__VA_ARGS__, kCall_3, kCall_2, ~)(__VA_ARGS__)
+  
+int kCall(FCall const f, const unsigned int seg) {
+  
+  struct KernelCallArg args;
+  const unsigned int addr = (seg | (unsigned int)f);
+  sceKernelIcacheInvalidateAll();
+  kuKernelCall((void*)addr, &args);
+  return args.ret1;
 }
+
+int kCall(FPCall const f, const unsigned int seg, void* const param) {
+  
+  struct KernelCallArg args;
+  args.arg1 = (u32)param;
+  const unsigned int addr = (seg | (unsigned int)f);
+  sceKernelIcacheInvalidateAll();
+  kuKernelCall((void*)addr, &args);
+  return args.ret1;
+}
+
 #else
-  #include <me-core-mapper/me-lib.h>
-  #define kCall kcall
+
+#include <me-core-mapper/me-lib.h>
+#define kCall kcall
+
 #endif
 
 static inline int selectTable() {
