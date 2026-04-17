@@ -28,12 +28,16 @@ int main() {
   scePowerSetClockFrequency(333, 333, 166);
   
   pspDebugScreenInit();
-  const int error = meSafeTaskInitDispatcher();
   
+  const int error = meSafeTaskInitDispatcher();
   if (error < 0) {
+    
     pspDebugScreenPrintf("cant't load kcall prx, error: %i", error);
     sceKernelDelayThread(1000000);
     sceKernelExitGame();
+  }
+  else {
+    meSafeLoadModule();
   }
   
   u32* const data = (u32* const)memalign(16, 64);
@@ -59,6 +63,9 @@ int main() {
     
   } while (!(ctl.Buttons & PSP_CTRL_HOME));
 
+  if (error >= 0) {
+    meSafeUnloadModule();
+  }
   sceKernelExitGame();
   return 0;
 }

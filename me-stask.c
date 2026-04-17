@@ -4,8 +4,8 @@
 #define SYSCALL_ROUTINE_PATCH_ADDR  0x883004bc
 #define SYSCALL_PARAMS_BASE         0xbfc00600
 
-u32 EDRAM_ROUTINE_PATCH_ADDR        = 0x8832162c;
-u32 INTERRUPT_HANDLER_PATCH_ADDR    = 0x8838c878;
+u32 EDRAM_ROUTINE_PATCH_ADDR        = 0;
+u32 INTERRUPT_HANDLER_PATCH_ADDR    = 0;
 
 unsigned int _ME_SHARED_MEM[16] __attribute__((aligned(64))) = {0};
 
@@ -13,28 +13,42 @@ unsigned int _ME_SHARED_MEM[16] __attribute__((aligned(64))) = {0};
 #define ME_COMMON_PROCESS (1 << 0)
 #define ME_CUSTOM_PROCESS (1 << 1)
 
+#define meSafeSync() asm volatile("sync")
+
+static void meSafeIcacheInvalidateAll() {
+  meSafeSync();
+  for (int i = 0; i < 8192; i += 64) {
+    asm volatile(
+        ".set push         \n"
+        ".set noreorder    \n"
+        "cache 0x04, 0(%0) \n"
+        "cache 0x04, 0(%0) \n"
+        ".set pop         \n"
+        :: "r"(i)
+        : "memory"
+    );
+  }
+  meSafeSync();
+}
+
+static void meSafeMemcpy(void *dst, const void *src, unsigned int size) {
+  unsigned int words = size >> 2;
+  unsigned int rem   = size & 3;
+  unsigned int *d = (unsigned int *)dst;
+  const unsigned int *s = (const unsigned int *)src;
+  while (words--) {
+    *d++ = *s++;
+  }
+  unsigned char *db = (unsigned char *)d;
+  const unsigned char *sb = (const unsigned char *)s;
+  while (rem--) {
+    *db++ = *sb++;
+  }
+}
+
 #if defined(PRX_FREE) && PRX_FREE
   #include <me-core-mapper/kernel/kcall.h>
   #include <kubridge.h>
-  #include <string.h>
-
-  static void meLibIcacheInvalidateAll() {
-    asm volatile ("sync");
-    for (int i = 0; i < 8192; i += 64) {
-      asm volatile(
-          ".set push         \n"
-          ".set noreorder    \n"
-          "cache 0x04, 0(%0) \n"
-          "cache 0x04, 0(%0) \n"
-          ".set pop         \n"
-          :: "r"(i)
-          : "memory"
-      );
-    }
-    asm volatile ("sync");
-  }
-
-  #define meLibSync()                       asm volatile("sync")
 
   #define _F(_1,_2,_3,NAME,...) NAME
   #define kCall(...) _F(__VA_ARGS__, kCall_3, kCall_2, ~)(__VA_ARGS__)
@@ -95,7 +109,7 @@ int processPatchedEdramRoutine() {
   const u32 intr = meCoreInterruptClearMask();
   static u32 init = 0;
   if (!init) {
-    meLibIcacheInvalidateAll();
+    meSafeIcacheInvalidateAll();
     init = 1;
   }
   return intr;
@@ -103,7 +117,7 @@ int processPatchedEdramRoutine() {
 
 __attribute__((noinline, aligned(4)))
 void processPatchedSyscallRoutine() {
-
+  
   u32* const syscall = (u32*)SYSCALL_PARAMS_BASE;
   if (*syscall == SYSCALL_CUSTOM_INDEX) {
     
@@ -120,18 +134,18 @@ void processPatchedSyscallRoutine() {
   meCoreEmitSoftwareInterrupt();
 }
 
-static inline void patchSyscallRoutine() {
+static inline void patchEdramRoutine() {
   
-  const u32 target = SYSCALL_ROUTINE_PATCH_ADDR;
-  memcpy((void*)target, (void*)&__start__patch_section, 8);
+  const u32 target = EDRAM_ROUTINE_PATCH_ADDR;
+  meSafeMemcpy((void*)target, (void*)&__start__mpatch_section, 8);
   sceKernelDcacheWritebackInvalidateRange((void*)target, 8);
   sceKernelIcacheInvalidateRange((void*)target, 8);
 }
 
-static inline void patchEdramRoutine() {
+static inline void patchSyscallRoutine() {
   
-  const u32 target = EDRAM_ROUTINE_PATCH_ADDR;
-  memcpy((void*)target, (void*)&__start__mpatch_section, 8);
+  const u32 target = SYSCALL_ROUTINE_PATCH_ADDR;
+  meSafeMemcpy((void*)target, (void*)&__start__patch_section, 8);
   sceKernelDcacheWritebackInvalidateRange((void*)target, 8);
   sceKernelIcacheInvalidateRange((void*)target, 8);
 }
@@ -139,7 +153,7 @@ static inline void patchEdramRoutine() {
 static inline void patchInterruptHandlerRoutine() {
   
   const u32 target = INTERRUPT_HANDLER_PATCH_ADDR;
-  memcpy((void*)target, (void*)&__start__ipatch_section, 8);
+  meSafeMemcpy((void*)target, (void*)&__start__ipatch_section, 8);
   sceKernelDcacheWritebackInvalidateRange((void*)target, 8);
   sceKernelIcacheInvalidateRange((void*)target, 8);
 }
@@ -165,7 +179,6 @@ static int waitMeReady() {
     sceKernelCpuResumeIntrWithSync(intr);
     
     sceKernelDelayThread(1000);
-    // meLibDelayPipeline();
   }
   
   intr = sceKernelCpuSuspendIntr();
@@ -180,15 +193,15 @@ static inline void triggerSysCall(const u32 index) {
   
   hw(SYSCALL_PARAMS_BASE) = index;
   hw(0xbd000004) = 5;
-  meLibSync();
+  meSafeSync();
   hw(0xbc100044) = 1;
-  meLibSync();
+  meSafeSync();
   
   //while (!(ME_PROCESSING & ME_COMMON_PROCESS)) {
   //}
 
   hw(0xbd000004) = 8;
-  meLibSync();
+  meSafeSync();
 }
 
 static inline void triggerCustomProcess() {
@@ -227,7 +240,7 @@ int meSafeTaskInitDispatcher() {
   sceKernelIcacheInvalidateAll();
 
   #if !defined(PRX_FREE) || PRX_FREE == 0
-
+    // todo: change to meKCallLoadPrx()
     if(meLibLoadPrx() < 0) {
       return -3;
     }
@@ -258,10 +271,17 @@ int meSafeTaskInitDispatcher() {
   
   kCall(patchMeCore, CACHED_KERNEL_MASK);
   
+  return 0;
+}
+
+void meSafeLoadModule() {
   sceUtilityLoadAvModule(PSP_AV_MODULE_AVCODEC);
   sceUtilityLoadAvModule(PSP_AV_MODULE_ATRAC3PLUS);
-  
-  return 0;
+}
+
+void meSafeUnloadModule() {
+  sceUtilityUnloadAvModule(PSP_AV_MODULE_ATRAC3PLUS);
+  sceUtilityUnloadAvModule(PSP_AV_MODULE_AVCODEC);
 }
 
 int meSafeTaskDispatch(Task* const task) {

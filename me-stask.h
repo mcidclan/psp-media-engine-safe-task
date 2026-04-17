@@ -20,7 +20,8 @@ typedef struct Task {
 int meSafeTaskInitDispatcher();
 int meSafeTaskDispatch(Task* const);
 void meSafeTaskWaitReady();
-
+void meSafeLoadModule();
+void meSafeUnloadModule();
 #ifdef __cplusplus
 }
 #endif

@@ -50,10 +50,14 @@ int main() {
   
   const int error = meSafeTaskInitDispatcher();
   if (error < 0) {
+    
     pspDebugScreenPrintf("cant't load kcall prx, error: %i", error);
     exit();
   }
-
+  else {
+    meSafeLoadModule();
+  }
+  
   SceCtrlData ctl;
   do {
     sceCtrlPeekBufferPositive(&ctl, 1);
@@ -70,6 +74,9 @@ int main() {
     
   } while (!(ctl.Buttons & PSP_CTRL_HOME));
 
+  if (error >= 0) {
+    meSafeUnloadModule();
+  }
   pspDebugScreenPrintf("exiting...");
   exit();
   return 0;
