@@ -109,6 +109,7 @@ int processPatchedEdramRoutine() {
   const u32 intr = meCoreInterruptClearMask();
   static u32 init = 0;
   if (!init) {
+    //meCoreDcacheWritebackInvalidateAll();
     meSafeIcacheInvalidateAll();
     init = 1;
   }
@@ -276,11 +277,14 @@ int meSafeTaskInitDispatcher() {
 
 void meSafeLoadModule() {
   sceUtilityLoadAvModule(PSP_AV_MODULE_AVCODEC);
-  sceUtilityLoadAvModule(PSP_AV_MODULE_ATRAC3PLUS);
+  
+  const u32 CODEC_ID = 0x1000;
+  unsigned long data[64] __attribute__((aligned(64))) = {0};
+  sceAudiocodecGetEDRAM(data, CODEC_ID);
+  sceAudiocodecReleaseEDRAM(data);
 }
 
 void meSafeUnloadModule() {
-  sceUtilityUnloadAvModule(PSP_AV_MODULE_ATRAC3PLUS);
   sceUtilityUnloadAvModule(PSP_AV_MODULE_AVCODEC);
 }
 
