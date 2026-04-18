@@ -15,6 +15,8 @@ unsigned int _ME_SHARED_MEM[16] __attribute__((aligned(64))) = {0};
 #define ME_COMMON_PROCESS (1 << 0)
 #define ME_CUSTOM_PROCESS (1 << 1)
 
+const u32 ME_PROCESSES = ME_COMMON_PROCESS | ME_CUSTOM_PROCESS; 
+
 #define meSafeSync() asm volatile("sync")
 
 static void meSafeIcacheInvalidateAll() {
@@ -134,7 +136,7 @@ void processPatchedSyscallRoutine() {
   }
 
   const u32 intr = meCoreInterruptClearMask();
-  ME_PROCESSING = 0;
+  ME_PROCESSING &= ~ME_PROCESSES;
   meCoreDcacheWritebackRange((void*)&ME_PROCESSING, 64);
   meCoreInterruptSetMask(intr);
 
@@ -180,7 +182,7 @@ static int waitMeReady() {
     
     intr = sceKernelCpuSuspendIntr();
     sceKernelDcacheInvalidateRange(&ME_PROCESSING, 64);
-    if (!ME_PROCESSING || (++out > 500)) { // temporary fix for standby
+    if (!(ME_PROCESSING & ME_PROCESSES) || (++out > 500)) { // temporary fix for standby
       break;
     }
     sceKernelCpuResumeIntrWithSync(intr);
@@ -189,7 +191,10 @@ static int waitMeReady() {
   }
   
   intr = sceKernelCpuSuspendIntr();
-  ME_PROCESSING = 0;
+  
+  //ME_PROCESSING = 0;
+  ME_PROCESSING &= ~ME_PROCESSES;
+  
   sceKernelDcacheWritebackRange(&ME_PROCESSING, 64);
   sceKernelCpuResumeIntrWithSync(intr);
   
