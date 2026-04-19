@@ -16,7 +16,7 @@ target_compile_options(me-stask-demo PRIVATE
 
 target_link_libraries(me-stask-demo
   me-core-lib me-core-mapper me-stask
-  psppower pspge pspdisplay pspctrl pspdebug pspaudiocodec
+  psppower pspge pspdisplay pspctrl pspdebug
   pspkubridge
 )
 

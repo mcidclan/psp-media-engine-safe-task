@@ -12,13 +12,19 @@ typedef void (*TaskFunc)(void*);
 typedef struct Task {
   TaskFunc func;
   void* param;
+  int index;
 } Task;
 
 int meSafeTaskInitDispatcher();
 int meSafeTaskDispatch(Task* const);
 void meSafeTaskWaitReady();
-void meSafeLoadModule();
-void meSafeUnloadModule();
+
+extern void meSafeTaskLoadModule();
+extern void meSafeTaskUnloadModule();
+
+// mini
+int meSafeTaskMiniInit();
+int meSafeTaskMiniDispatch(Task* const task);
 
 #ifdef __cplusplus
 }

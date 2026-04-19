@@ -1,6 +1,6 @@
 #include "me-stask.h"
-#include <pspaudiocodec.h>
-#include <psputility_avmodules.h>
+
+#define CUSTOM_MAGIC_CHECK 0xC0FFEE
 
 #define SYSCALL_CUSTOM_INDEX        0x191
 #define SYSCALL_ROUTINE_PATCH_ADDR  0x883004bc
@@ -8,6 +8,7 @@
 
 u32 EDRAM_ROUTINE_PATCH_ADDR        = 0;
 u32 INTERRUPT_HANDLER_PATCH_ADDR    = 0;
+u32 SYSCALL_FUNCTION_PATCH_ADDR     = 0;
 
 unsigned int _ME_SHARED_MEM[16] __attribute__((aligned(64))) = {0};
 
@@ -100,6 +101,8 @@ extern char __start__mpatch_section[];
 extern char __stop__mpatch_section[];
 extern char __start__ipatch_section[];
 extern char __stop__ipatch_section[];
+extern char __start__fpatch_section[];
+extern char __stop__fpatch_section[];
 
 __attribute__((noinline, aligned(4)))
 void processPatchedInterruptHandlerRoutine() {
@@ -226,10 +229,11 @@ static inline void setCurrentTask(void* task) {
   
   const Task* currentTask = (Task*)task;
   u32* param = (u32*)SYSCALL_PARAMS_BASE;
-  param[0] = SYSCALL_CUSTOM_INDEX; // -1
+  param[0] = currentTask->index; // SYSCALL_CUSTOM_INDEX; // -1
   param[2] = (u32)(currentTask->func);
   param[3] = (u32)(currentTask->param);
-
+  param[4] = CUSTOM_MAGIC_CHECK;
+  
   int intr = sceKernelCpuSuspendIntr();
   ME_PROCESSING |= ME_CUSTOM_PROCESS;
   sceKernelDcacheWritebackRange(&ME_PROCESSING, 64);
@@ -241,12 +245,13 @@ static inline void setCurrentTask(void* task) {
 
 static int dispatchTask(void* task) {
   
+  ((Task*)task)->index = SYSCALL_CUSTOM_INDEX;
   setCurrentTask(task);
   triggerCustomProcess();
   return 0;
 }
 
-int meSafeTaskInitDispatcher() {
+int init() {
   
   sceKernelDcacheWritebackInvalidateAll();
   sceKernelIcacheInvalidateAll();
@@ -264,10 +269,12 @@ int meSafeTaskInitDispatcher() {
     case ME_CORE_T2_IMG_TABLE:
       EDRAM_ROUTINE_PATCH_ADDR     = 0x8832162c;
       INTERRUPT_HANDLER_PATCH_ADDR = 0x8838c780;
+      SYSCALL_FUNCTION_PATCH_ADDR  = 0x8834f3b0;
       break;
     case ME_CORE_IMG_TABLE:
       EDRAM_ROUTINE_PATCH_ADDR     = 0x88312f4c;
       INTERRUPT_HANDLER_PATCH_ADDR = 0x8837b1c0;
+      SYSCALL_FUNCTION_PATCH_ADDR  = 0; 
       break;
     case ME_CORE_BL_IMG_TABLE:
       //EDRAM_ROUTINE_PATCH_ADDR        = ;
@@ -281,22 +288,18 @@ int meSafeTaskInitDispatcher() {
       return -4;
   }
   
-  kCall(patchMeCore, CACHED_KERNEL_MASK);
-  
   return 0;
 }
 
-void meSafeLoadModule() {
-  sceUtilityLoadAvModule(PSP_AV_MODULE_AVCODEC);
+int meSafeTaskInitDispatcher() {
   
-  const u32 CODEC_ID = 0x1000;
-  unsigned long data[64] __attribute__((aligned(64))) = {0};
-  sceAudiocodecGetEDRAM(data, CODEC_ID);
-  sceAudiocodecReleaseEDRAM(data);
-}
-
-void meSafeUnloadModule() {
-  sceUtilityUnloadAvModule(PSP_AV_MODULE_AVCODEC);
+  int error = init();
+  if (error) {
+    return error;
+  }
+  
+  kCall(patchMeCore, CACHED_KERNEL_MASK);
+  return 0;
 }
 
 int meSafeTaskDispatch(Task* const task) {
@@ -309,3 +312,58 @@ void meSafeTaskWaitReady() {
   
   kCall(waitMeReady, CACHED_KERNEL_MASK);
 }
+
+//
+//
+// me safe task mini
+//
+//
+__attribute__((noinline, aligned(4)))
+void processPatchedSyscallFunction() {
+  
+  u32* const syscall = (u32*)SYSCALL_PARAMS_BASE;
+  if (syscall[4] == CUSTOM_MAGIC_CHECK) {
+    const TaskFunc task = (TaskFunc)syscall[2];
+    void* const param = (void* const)syscall[3];
+    task(param);
+  }
+  
+  const u32 intr = meCoreInterruptClearMask();
+  ME_PROCESSING &= ~ME_PROCESSES;
+  meCoreDcacheWritebackRange((void*)&ME_PROCESSING, 64);
+  meCoreInterruptSetMask(intr);
+}
+
+static int patchSyscallFunction() {
+
+  const u32 target = SYSCALL_FUNCTION_PATCH_ADDR;
+  meSafeMemcpy((void*)target, (void*)&__start__fpatch_section, 8);
+  sceKernelDcacheWritebackInvalidateRange((void*)target, 8);
+  sceKernelIcacheInvalidateRange((void*)target, 8);
+  return 0;
+}
+
+static int dispatchTaskMini(void* task) {
+  
+  ((Task*)task)->index = 36;
+  setCurrentTask(task);
+  triggerCustomProcess();
+  return 0;
+}
+
+int meSafeTaskMiniInit() {
+  
+  int error = init();
+  if (error) {
+    return error;
+  }
+  
+  kCall(patchSyscallFunction, CACHED_KERNEL_MASK);
+  return 0;
+}
+
+int meSafeTaskMiniDispatch(Task* const task) {
+  
+  return kCall(dispatchTaskMini, CACHED_KERNEL_MASK, task);
+}
+

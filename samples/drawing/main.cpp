@@ -55,7 +55,7 @@ int main() {
     exit();
   }
   else {
-    meSafeLoadModule();
+    meSafeTaskLoadModule();
   }
   
   SceCtrlData ctl;
@@ -75,7 +75,7 @@ int main() {
   } while (!(ctl.Buttons & PSP_CTRL_HOME));
 
   if (error >= 0) {
-    meSafeUnloadModule();
+    meSafeTaskUnloadModule();
   }
   pspDebugScreenPrintf("exiting...");
   exit();

@@ -111,3 +111,30 @@ ipatch:
 .size ipatch, 8
 .global __stop__ipatch_section
 __stop__ipatch_section:
+
+
+make_safe processPatchedSyscallFunction
+
+.section _fpatch_section, "ax", @progbits
+.balign 4
+.global __start__fpatch_section
+__start__fpatch_section:
+.global fpatch
+.type fpatch, @function
+.extern processPatchedSyscallFunction
+.ent fpatch
+fpatch:
+  .set push
+  .set noreorder
+  .set noat
+  .set volatile
+  
+  jal processPatchedSyscallFunction_safe
+  .word 0x2402264C //li $v0, 0x264c
+  
+  .set pop
+    
+.end fpatch
+.size fpatch, 8
+.global __stop__fpatch_section
+__stop__fpatch_section:
