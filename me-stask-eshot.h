@@ -7,8 +7,8 @@ extern "C" {
 
 typedef struct EasyShot {
   void* task;
-  u32 offset;
-  u32 size;
+  unsigned int offset;
+  unsigned int size;
 } EasyShot;
 
 #ifdef __cplusplus

@@ -2,7 +2,7 @@
 #define ME_SAFE_TASK_H
 
 #include <me-core-mapper/me-core-mapper.h>
-#include "me-stask-easyshot.h"
+#include "me-stask-eshot.h"
 
 #ifdef __cplusplus
 extern "C" {
