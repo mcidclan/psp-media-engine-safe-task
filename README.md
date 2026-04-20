@@ -14,6 +14,19 @@ Note: Classic version tested on Slim and Phat, mini version tested on Slim (WIP)
 - Clone and install psp-media-engine-custom-core library, see below.
 - Clone this repository, then build and install the library via cmake.
 
+## build
+using prx
+```bash
+cmake -DPRX_FREE=0 ..
+make clean; make install;
+```
+
+using kubridge (no prx)
+```bash
+cmake -DPRX_FREE=1 ..
+make clean; make install;
+```
+
 ## Usage
 See samples directory.
 

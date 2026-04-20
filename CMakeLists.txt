@@ -5,6 +5,7 @@ project(me-stask C ASM)
 add_library(me-stask STATIC
   me-stask.c
   me-stask-lumod.c
+  me-stask-utils.c
   patch.S
 )
 

@@ -1,4 +1,5 @@
 #include "me-stask.h"
+#include "me-stask-utils.h"
 
 #define CUSTOM_MAGIC_CHECK 0xC0FFEE
 
@@ -17,39 +18,6 @@ unsigned int _ME_SHARED_MEM[16] __attribute__((aligned(64))) = {0};
 #define ME_CUSTOM_PROCESS (1 << 1)
 
 const u32 ME_PROCESSES = ME_COMMON_PROCESS | ME_CUSTOM_PROCESS; 
-
-#define meSafeSync() asm volatile("sync")
-
-static void meSafeIcacheInvalidateAll() {
-  meSafeSync();
-  for (int i = 0; i < 8192; i += 64) {
-    asm volatile(
-        ".set push         \n"
-        ".set noreorder    \n"
-        "cache 0x04, 0(%0) \n"
-        "cache 0x04, 0(%0) \n"
-        ".set pop         \n"
-        :: "r"(i)
-        : "memory"
-    );
-  }
-  meSafeSync();
-}
-
-static void meSafeMemcpy(void *dst, const void *src, unsigned int size) {
-  unsigned int words = size >> 2;
-  unsigned int rem   = size & 3;
-  unsigned int *d = (unsigned int *)dst;
-  const unsigned int *s = (const unsigned int *)src;
-  while (words--) {
-    *d++ = *s++;
-  }
-  unsigned char *db = (unsigned char *)d;
-  const unsigned char *sb = (const unsigned char *)s;
-  while (rem--) {
-    *db++ = *sb++;
-  }
-}
 
 #if defined(PRX_FREE) && PRX_FREE
 
@@ -251,7 +219,7 @@ static int dispatchTask(void* task) {
   return 0;
 }
 
-int init() {
+static int init() {
   
   sceKernelDcacheWritebackInvalidateAll();
   sceKernelIcacheInvalidateAll();
@@ -326,12 +294,12 @@ void processPatchedSyscallFunction() {
     const TaskFunc task = (TaskFunc)syscall[2];
     void* const param = (void* const)syscall[3];
     task(param);
+    
+    const u32 intr = meCoreInterruptClearMask();
+    ME_PROCESSING &= ~ME_CUSTOM_PROCESS;
+    meCoreDcacheWritebackRange((void*)&ME_PROCESSING, 64);
+    meCoreInterruptSetMask(intr);
   }
-  
-  const u32 intr = meCoreInterruptClearMask();
-  ME_PROCESSING &= ~ME_PROCESSES;
-  meCoreDcacheWritebackRange((void*)&ME_PROCESSING, 64);
-  meCoreInterruptSetMask(intr);
 }
 
 static int patchSyscallFunction() {
