@@ -1,11 +1,10 @@
+#include <me-core-mapper/hw-registers.h>
+#include "me-stask-kcall.h"
+
 #if defined(PRX_FREE) && PRX_FREE
 
-#include <me-core-mapper/kernel/kcall.h>
 #include <kubridge.h>
 
-#define _F(_1,_2,_3,NAME,...) NAME
-#define kCall(...) _F(__VA_ARGS__, kCall_3, kCall_2, ~)(__VA_ARGS__)
-  
 int kCall(FCall const f, const unsigned int seg) {
   
   struct KernelCallArg args;
@@ -25,4 +24,29 @@ int kCall(FPCall const f, const unsigned int seg, void* const param) {
   return args.ret1;
 }
 
+#else
+
+#include <me-core-mapper/me-lib.h>
+
+static u8 prxLoaded = 0;
+#define kCall kcall
+#define grabPrx()             \
+{                             \
+  if (!prxLoaded) {           \
+    if (meLibLoadPrx() < 0) { \
+      return -3;              \
+    }                         \
+    prxLoaded = 1;            \
+  }                           \
+}
+
 #endif
+
+int meSafeTaskCall(FPCall const call, void* const param) {
+  
+  #if !defined(PRX_FREE) || PRX_FREE == 0
+  grabPrx();
+  #endif
+
+  return kCall(call, CACHED_KERNEL_MASK, param);
+}

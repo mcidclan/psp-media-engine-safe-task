@@ -1,5 +1,7 @@
+#include <pspkernel.h>
 #include "me-stask.h"
 #include "me-stask-utils.h"
+#include "me-stask-kcall.h"
 
 #define CUSTOM_MAGIC_CHECK 0xC0FFEE
 
@@ -21,22 +23,14 @@ const u32 ME_PROCESSES = ME_COMMON_PROCESS | ME_CUSTOM_PROCESS;
 
 #if defined(PRX_FREE) && PRX_FREE
 
-#include <pspkernel.h>
-#include <me-core-mapper/kernel/kcall.h>
-
-#define _F(_1,_2,_3,NAME,...) NAME
-#define kCall(...) _F(__VA_ARGS__, kCall_3, kCall_2, ~)(__VA_ARGS__)
 extern int kCall(FCall const f, const unsigned int seg);
 extern int kCall(FPCall const f, const unsigned int seg, void* const param);
-
 #else
 
-#include <me-core-mapper/me-lib.h>
 #define kCall kcall
-
 #endif
 
-static inline int selectTable() {
+static inline int selectTable(void* const param) {
   
   const int tableId = meCoreGetTableIdFromWitnessWord();
   if (tableId < 2) {
@@ -206,15 +200,8 @@ static int init() {
   
   sceKernelDcacheWritebackInvalidateAll();
   sceKernelIcacheInvalidateAll();
-
-  #if !defined(PRX_FREE) || PRX_FREE == 0
-    // todo: change to meKCallLoadPrx()
-    if(meLibLoadPrx() < 0) {
-      return -3;
-    }
-  #endif
   
-  const int table = kCall(selectTable, CACHED_KERNEL_MASK);
+  const int table = meSafeTaskCall(selectTable, NULL);
   switch(table) {
     
     case ME_CORE_T2_IMG_TABLE:
