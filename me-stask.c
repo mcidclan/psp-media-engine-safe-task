@@ -164,13 +164,14 @@ static inline void triggerSysCall(const u32 index) {
   meSafeSync();
 }
 
-static inline void triggerCustomProcess() {
+void meSafeKernelTaskTriggerCustomProcess() {
   
   const u32 index = hw(SYSCALL_PARAMS_BASE);
   triggerSysCall(index);
 }
 
-static inline void setCurrentTask(void* task) {
+// static inline 
+void meSafeKernelTaskSetCurrentTask(void* task) {
   
   const Task* currentTask = (Task*)task;
   u32* param = (u32*)SYSCALL_PARAMS_BASE;
@@ -191,18 +192,28 @@ static inline void setCurrentTask(void* task) {
 static int dispatchTask(void* task) {
   
   ((Task*)task)->index = SYSCALL_CUSTOM_INDEX;
-  setCurrentTask(task);
-  triggerCustomProcess();
+  meSafeKernelTaskSetCurrentTask(task);
+  meSafeKernelTaskTriggerCustomProcess();
   return 0;
+}
+
+int meSafeKernelTaskSelectTable() {
+  
+  return selectTable(NULL);
+}
+
+int meSafeTaskSelectTable() {
+  
+  return meSafeTaskCall(selectTable, NULL);
 }
 
 static int init() {
   
-  sceKernelDcacheWritebackInvalidateAll();
-  sceKernelIcacheInvalidateAll();
+  //sceKernelDcacheWritebackInvalidateAll();
+  //sceKernelIcacheInvalidateAll();
   
-  const int table = meSafeTaskCall(selectTable, NULL);
-  switch(table) {
+  const int table = meSafeTaskSelectTable();
+  switch (table) {
     
     case ME_CORE_T2_IMG_TABLE:
       EDRAM_ROUTINE_PATCH_ADDR     = 0x8832162c;
@@ -284,8 +295,8 @@ static int patchSyscallFunction() {
 static int dispatchTaskMini(void* task) {
   
   ((Task*)task)->index = 36;
-  setCurrentTask(task);
-  triggerCustomProcess();
+  meSafeKernelTaskSetCurrentTask(task);
+  meSafeKernelTaskTriggerCustomProcess();
   return 0;
 }
 

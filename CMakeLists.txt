@@ -8,6 +8,7 @@ add_library(me-stask STATIC
   me-stask-lumod.c
   me-stask-utils.c
   me-stask-eshot.c
+  me-stask-mist.c
   patch.S
 )
 
