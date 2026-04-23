@@ -15,7 +15,7 @@ This first method patches the Media Engine Syscall handler, responsible for call
 
 That said, this patch alone isn't sufficient. It works in tandem with a second patch applied to a function loaded and launched from the main CPU, whose role is to trigger a cache update on the ME side. A third patch is also introduced over the interrupt handler, to distinguish custom tasks from system tasks.
 
-The ideal candidate for that second patch was `sceAudiocodecGetEDRAM`. When called from the main CPU, it dispatches the corresponding Syscall to the ME through the me-wrapper, and triggers a soft interrupt toward it. The SoC DDRFlush hardware registers which is then used by the me wrapper to flush memory, ensures the written patches are visible to the ME.
+The ideal candidate for that second patch was `sceAudiocodecGetEDRAM`. When called from the main CPU, it dispatches the corresponding Syscall to the ME through the me-wrapper, and this later triggers a soft interrupt to it.
 
 On the ME side, this process invokes `meCoreGetMeEdram`, which was patched to perform an ICache invalidation, making sure the modified Syscall handler and interrupt handler are properly picked up by the ME instruction pipeline. Note that this method requires the `PSP_MODULE_AV_AVCODEC` module to be loaded.
 

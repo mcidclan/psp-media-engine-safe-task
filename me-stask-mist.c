@@ -24,7 +24,7 @@ extern int kCall(FPCall const f, const unsigned int seg, void* const param);
 #define kCall kcall
 #endif
 
-static int mistRefreshMe () {
+static int mistRefreshMe (void* param) {
   
   hw(0xbfc00704) = 0xffffffff;
   meSafeSync();
@@ -34,9 +34,13 @@ static int mistRefreshMe () {
   hw(0xbfc00040 + 0x28) = 0;
   meSafeSync();
   
-  hw(0xbc10004c) |= 0x04;
+  hw(0xbc10004c) |= 0x1434;
   hw(0xbc10004c) = 0x0;
   meSafeSync();
+  
+  hw(0xBC100070) |= 0x05;
+  meSafeSync();
+  
   return 0;
 }
 
@@ -136,10 +140,10 @@ int meSafeKernelTaskMistDispatch(Task* const task) {
 // Refresh
 void meSafeTaskMistRefreshMe () {
   
-  kCall(mistRefreshMe, CACHED_KERNEL_MASK);
+  meSafeTaskCall(mistRefreshMe, NULL/*CACHED_KERNEL_MASK*/);
 }
 
 void meSafeKernelTaskMistRefreshMe() {
   
-  mistRefreshMe();
+  mistRefreshMe(NULL);
 }

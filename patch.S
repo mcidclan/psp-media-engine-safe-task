@@ -9,10 +9,21 @@
     
     \pre
 
-    addiu $sp, $sp, -12
+    addiu $sp, $sp, -24
+    sw $k0, 16($sp)
+    sw $k1, 12($sp)
     sw $ra, 8($sp)
     sw $v0, 4($sp)
     sw $v1, 0($sp)
+    
+    lui  $k0, %hi(\func)
+    addiu $k0, $k0, %lo(\func)
+
+    li $k1, 0x80000000
+    or $k0, $k0, $k1
+    
+    cache 0x8, 0($k0)
+    sync
     
     jal \func
     nop
@@ -20,7 +31,9 @@
     lw $v1, 0($sp)
     lw $v0, 4($sp)
     lw $ra, 8($sp)
-    addiu $sp, $sp, 12
+    lw $k1, 12($sp)
+    lw $k0, 16($sp)
+    addiu $sp, $sp, 24
     
     jr $ra
     nop
@@ -129,7 +142,7 @@ fpatch:
   .set noat
   .set volatile
   
-  jal processPatchedSyscallFunction_safe
+  j processPatchedSyscallFunction_safe
   .word 0x2402264C //li $v0, 0x264c
   
   .set pop

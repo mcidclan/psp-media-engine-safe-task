@@ -3,7 +3,7 @@
 #include "me-stask-utils.h"
 #include "me-stask-kcall.h"
 
-#define CUSTOM_MAGIC_CHECK 0xC0FFEE
+#define CUSTOM_MAGIC_CHECK          0xC0FFEE
 
 #define SYSCALL_CUSTOM_INDEX        0x191
 #define SYSCALL_ROUTINE_PATCH_ADDR  0x883004bc
@@ -15,7 +15,7 @@ u32 SYSCALL_FUNCTION_PATCH_ADDR     = 0;
 
 unsigned int _ME_SHARED_MEM[16] __attribute__((aligned(64))) = {0};
 
-#define ME_PROCESSING (*_ME_SHARED_MEM)
+#define ME_PROCESSING     (*_ME_SHARED_MEM)
 #define ME_COMMON_PROCESS (1 << 0)
 #define ME_CUSTOM_PROCESS (1 << 1)
 
@@ -29,6 +29,10 @@ extern int kCall(FPCall const f, const unsigned int seg, void* const param);
 
 #define kCall kcall
 #endif
+
+/*
+ * Second Method: me-safe-task-mini
+ */
 
 static inline int selectTable(void* const param) {
   
@@ -139,10 +143,8 @@ static int waitMeReady() {
   }
   
   intr = sceKernelCpuSuspendIntr();
-  
   //ME_PROCESSING = 0;
   ME_PROCESSING &= ~ME_PROCESSES;
-  
   sceKernelDcacheWritebackRange(&ME_PROCESSING, 64);
   sceKernelCpuResumeIntrWithSync(intr);
   
@@ -153,15 +155,9 @@ static inline void triggerSysCall(const u32 index) {
   
   hw(SYSCALL_PARAMS_BASE) = index;
   hw(0xbd000004) = 5;
-  meSafeSync();
-  hw(0xbc100044) = 1;
-  meSafeSync();
-  
-  //while (!(ME_PROCESSING & ME_COMMON_PROCESS)) {
-  //}
-
-  hw(0xbd000004) = 8;
-  meSafeSync();
+  meCoreEmitSoftwareInterrupt();
+  //hw(0xbd000004) = 8;
+  //meSafeSync();
 }
 
 void meSafeKernelTaskTriggerCustomProcess() {
@@ -209,9 +205,6 @@ int meSafeTaskSelectTable() {
 
 static int init() {
   
-  //sceKernelDcacheWritebackInvalidateAll();
-  //sceKernelIcacheInvalidateAll();
-  
   const int table = meSafeTaskSelectTable();
   switch (table) {
     
@@ -223,7 +216,7 @@ static int init() {
     case ME_CORE_IMG_TABLE:
       EDRAM_ROUTINE_PATCH_ADDR     = 0x88312f4c;
       INTERRUPT_HANDLER_PATCH_ADDR = 0x8837b1c0;
-      SYSCALL_FUNCTION_PATCH_ADDR  = 0x08365038;
+      SYSCALL_FUNCTION_PATCH_ADDR  = 0x88365038;
       break;
     case ME_CORE_BL_IMG_TABLE:
       //EDRAM_ROUTINE_PATCH_ADDR        = ;
@@ -236,6 +229,9 @@ static int init() {
     default:
       return -4;
   }
+  
+  // sceKernelDcacheWritebackInvalidateAll();
+  // sceKernelIcacheInvalidateAll();
   
   return 0;
 }
@@ -262,16 +258,21 @@ void meSafeTaskWaitReady() {
   kCall(waitMeReady, CACHED_KERNEL_MASK);
 }
 
-//
-//
-// me safe task mini
-//
-//
+
+/*
+ * Second Method: me-safe-task-mini
+ */
+ 
 __attribute__((noinline, aligned(4)))
 void processPatchedSyscallFunction() {
-  
+    
   u32* const syscall = (u32*)SYSCALL_PARAMS_BASE;
+
   if (syscall[4] == CUSTOM_MAGIC_CHECK) {
+    
+    syscall[0] = -1;
+    syscall[4] = 0;
+
     const TaskFunc task = (TaskFunc)syscall[2];
     void* const param = (void* const)syscall[3];
     task(param);
