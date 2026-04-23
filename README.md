@@ -3,12 +3,13 @@ A library to safely execute custom tasks on the Media Engine without disrupting 
 
 - Tasks are executed in parallel without blocking the SC
 - Has a dedicated function to yield the current thread on SC side while waiting for the ME side process to complete
-- In classic version, the task is invoked through a custom syscall, the ME side handler is patched for that purpose (load/unload module is necessary)
-- In mini version, the task is invoked through a customized syscall function, which is patched for that purpose (no need to load/unload modules)
-- No manual soft reset is required, for the classic version the first execution goes through a patch of getMeEDRAM, the mini version is self-sustained
+- For the first method, the task is invoked through a custom syscall, the ME side handler is patched for that purpose (load/unload module is necessary)
+- With the second method, the task is invoked through a custom syscall function, which is patched for that purpose (no need to load/unload modules)
+- Using the MIST method, the task is invoked through a custom address injected directly into the Syscall table via DMACPLUS, without patching the core
+- No manual soft reset is required, for the first method the first execution goes through a patch of getMeEDRAM, the second and MIST methods are self-sustained
 - Device sleep works properly as the base ME wrapper is not altered
 
-Note: Classic version tested on Slim and Phat, mini version tested on Slim (WIP)
+Note: Method 1 tested on Slim and Phat, Method 2 tested on Slim, should work on Phat, MIST Slim only for now.
 
 ## Requirement
 - Clone and install psp-media-engine-custom-core library, see below.
@@ -29,6 +30,9 @@ make clean; make install;
 
 ## Usage
 See samples directory.
+
+## MIST
+see [here](MIST.md).
 
 ## Contribution Guidelines
 
