@@ -1,19 +1,20 @@
-//#include <pspkernel.h>
-
 #include <me-core-mapper/dmacplus.h>
 #include "me-stask-utils.h"
 #include "me-stask-kcall.h"
 #include "me-stask-mist.h"
 
-extern int meSafeTaskSelectTable();
-extern int meSafeKernelTaskSelectTable();
+#define CUSTOM_MAGIC_CHECK    0xC0FFEE
+#define SYSCALL_PARAMS_BASE   0xbfc00600
 
-extern void meSafeKernelTaskSetCurrentTask(void* task);
+#define ME_PROCESSING         (*_ME_SHARED_MEM)
+#define ME_CUSTOM_PROCESS     (1 << 1)
+
+extern int  _ME_SHARED_MEM[16];
+extern int  meSafeTaskSelectTable();
+extern int  meSafeKernelTaskSelectTable();
 extern void meSafeKernelTaskTriggerCustomProcess();
 
-//static 
-static int MIST_SYSCALL_INDEX = 0; // 12;
-static u32 SYSCALL_TABLE_ADDR = 0x003ce870; // slim
+static u32 SYSCALL_TABLE_ADDR = 0; // 0x003ce870 on slim
 
 #if defined(PRX_FREE) && PRX_FREE
 
@@ -26,7 +27,10 @@ extern int kCall(FPCall const f, const unsigned int seg, void* const param);
 
 static int mistRefreshMe (void* param) {
   
-  hw(0xbfc00704) = 0xffffffff;
+  hw(0xBC100050) |= 0x10;
+  meSafeSync();
+  
+  hw(0xbfc00704) =  0x1f;
   meSafeSync();
   
   hw(0xbfc00040 + 0x20) = 0x20090003;
@@ -44,24 +48,46 @@ static int mistRefreshMe (void* param) {
   return 0;
 }
 
-static int mistConfigSyscall (void* const param) {
-  
-  MistCfg* cfg = (MistCfg*)param;
-  
-  MIST_SYSCALL_INDEX = cfg->index;
-  const u32 tableBase = SYSCALL_TABLE_ADDR + (MIST_SYSCALL_INDEX * 4);
+static int mistInjectSyscall (void* const param) {
+    
+  MistInjector* injector = (MistInjector*)param;
+  const u32 tableBase = SYSCALL_TABLE_ADDR + (injector->index * 4);
 
-  cleanSc2MeChannel();
-  dmacplusFromSc(cfg->addr, tableBase, DMACPLUS_BYTE_COUNT_4, 1);
-  waitSc2MeChannel();
+  Aligned64 aligned = getAligned64Mem("mist-data-00", PSP_MEMORY_PARTITION_USER, 64);
+  aligned.mem[0] = injector->addr;
+  sceKernelDcacheWritebackRange(aligned.mem, 64);
   
+  int state = sceKernelSuspendDispatchThread();
+  cleanSc2MeChannel();
+  dmacplusFromSc((u32)aligned.mem, tableBase, DMACPLUS_BYTE_COUNT_4, 1);
+  waitSc2MeChannel();
+  sceKernelResumeDispatchThread(state);
+    
+  sceKernelFreePartitionMemory(aligned.uid);
   return 0;
 }
 
-static int mistDispatchTask (void* task) {
+static void meSafeKernelTaskMistSetCurrentTrigger(void* const trigger) {
   
-  ((Task*)task)->index = MIST_SYSCALL_INDEX;
-  meSafeKernelTaskSetCurrentTask(task);
+  const MistTrigger* currentTrigger = (MistTrigger*)trigger;
+  u32* param = (u32*)SYSCALL_PARAMS_BASE;
+  param[0] = (u32)currentTrigger->index;
+  param[2] = (u32)currentTrigger->index;
+  param[3] = (u32)currentTrigger->param;
+  param[4] = CUSTOM_MAGIC_CHECK;
+  
+  int intr = sceKernelCpuSuspendIntr();
+  ME_PROCESSING |= ME_CUSTOM_PROCESS;
+  sceKernelDcacheWritebackRange(&ME_PROCESSING, 64);
+  sceKernelCpuResumeIntrWithSync(intr);
+
+  sceKernelDcacheWritebackInvalidateRange(param, 16);
+  sceKernelIcacheInvalidateRange(param, 16);
+}
+
+static int mistTriggerTask (void* const trigger) {
+  
+  meSafeKernelTaskMistSetCurrentTrigger(trigger);
   meSafeKernelTaskTriggerCustomProcess();
   return 0;
 }
@@ -86,6 +112,17 @@ static int init (const int table) {
   return 0;
 }
 
+// Refresh
+void meSafeTaskMistRefreshMe () {
+  
+  meSafeTaskCall(mistRefreshMe, NULL/*CACHED_KERNEL_MASK*/);
+}
+
+void meSafeKernelTaskMistRefreshMe() {
+  
+  mistRefreshMe(NULL);
+}
+
 // Init
 int meSafeTaskMistInit () {
   
@@ -107,43 +144,35 @@ int meSafeKernelTaskMistInit () {
   return 0;
 }
 
-// Config
-void meSafeTaskMistConfigSyscall (MistCfg* const cfg) {
+// Inject
+void meSafeTaskMistInjectSyscall (MistInjector* const injector) {
   
-  kCall(mistConfigSyscall, CACHED_KERNEL_MASK, (void*)cfg);
+  kCall(mistInjectSyscall, CACHED_KERNEL_MASK, (void*)injector);
 }
 
-void meSafeKernelTaskMistConfigSyscall(MistCfg* const cfg) {
+void meSafeKernelTaskMistInjectSyscall(MistInjector* const injector) {
   
-  mistConfigSyscall((void*)cfg);
+  mistInjectSyscall((void*)injector);
 }
 
-// Dispatch
-int meSafeTaskMistDispatch (Task* const task) {
+// Trigger
+int meSafeTaskMistTrigger (MistTrigger* const trigger) {
   
-  if (!MIST_SYSCALL_INDEX) {
-    return -1;
-  }
-  task->index = MIST_SYSCALL_INDEX;
-  return kCall(mistDispatchTask, CACHED_KERNEL_MASK, task);
+  
+  return kCall(mistTriggerTask, CACHED_KERNEL_MASK, (void*)trigger);
 }
 
-int meSafeKernelTaskMistDispatch(Task* const task) {
+int meSafeKernelTaskMistTrigger(MistTrigger* const trigger) {
   
-  if (!MIST_SYSCALL_INDEX) {
-    return -1;
-  }
-  task->index = MIST_SYSCALL_INDEX;
-  return mistDispatchTask(task);
+  return mistTriggerTask((void*)trigger);
 }
 
-// Refresh
-void meSafeTaskMistRefreshMe () {
+// Finish
+int meSafeTaskMistFinish() {
   
-  meSafeTaskCall(mistRefreshMe, NULL/*CACHED_KERNEL_MASK*/);
-}
-
-void meSafeKernelTaskMistRefreshMe() {
-  
-  mistRefreshMe(NULL);
+  const u32 intr = meCoreInterruptClearMask();
+  ME_PROCESSING &= ~ME_CUSTOM_PROCESS;
+  meCoreDcacheWritebackRange((void*)_ME_SHARED_MEM, 64);
+  meCoreInterruptSetMask(intr);
+  return 1;
 }

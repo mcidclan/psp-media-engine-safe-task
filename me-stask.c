@@ -4,7 +4,6 @@
 #include "me-stask-kcall.h"
 
 #define CUSTOM_MAGIC_CHECK          0xC0FFEE
-
 #define SYSCALL_CUSTOM_INDEX        0x191
 #define SYSCALL_ROUTINE_PATCH_ADDR  0x883004bc
 #define SYSCALL_PARAMS_BASE         0xbfc00600
@@ -166,8 +165,7 @@ void meSafeKernelTaskTriggerCustomProcess() {
   triggerSysCall(index);
 }
 
-// static inline 
-void meSafeKernelTaskSetCurrentTask(void* task) {
+static void meSafeKernelTaskSetCurrentTask(void* task) {
   
   const Task* currentTask = (Task*)task;
   u32* param = (u32*)SYSCALL_PARAMS_BASE;

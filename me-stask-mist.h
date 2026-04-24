@@ -7,20 +7,27 @@
 extern "C" {
 #endif
 
-typedef struct MistCfg {
+typedef struct MistInjector {
   
   int index;
   u32 addr;
-} MistCfg;
+} MistInjector;
 
-int meSafeTaskMistInit();
-int meSafeKernelTaskMistInit();
-void meSafeTaskMistConfigSyscall (MistCfg* const cfg);
-void meSafeKernelTaskMistConfigSyscall(MistCfg* const cfg);
-int meSafeTaskMistDispatch(Task* const task);
-int meSafeKernelTaskMistDispatch(Task* const task);
+typedef struct MistTrigger {
+  
+  int index;
+  void* param;
+} MistTrigger;
+
 void meSafeTaskMistRefreshMe();
 void meSafeKernelTaskMistRefreshMe();
+int  meSafeTaskMistInit();
+int  meSafeKernelTaskMistInit();
+void meSafeTaskMistInjectSyscall (MistInjector* const injector);
+void meSafeKernelTaskMistInjectSyscall(MistInjector* const injector);
+int  meSafeTaskMistTrigger(MistTrigger* const trigger);
+int  meSafeKernelTaskMistTrigger(MistTrigger* const trigger);
+int  meSafeTaskMistFinish();
 
 #ifdef __cplusplus
 }
