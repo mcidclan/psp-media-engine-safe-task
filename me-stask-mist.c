@@ -27,10 +27,13 @@ extern int kCall(FPCall const f, const unsigned int seg, void* const param);
 
 static int mistRefreshMe (void* param) {
   
-  hw(0xBC100050) |= 0x10;
-  meSafeSync();
+  int intr = sceKernelCpuSuspendIntr();
+
+  //hw(0xBC100050) |= 0x10;
+  //meSafeSync();
   
-  hw(0xbfc00704) =  0x1f;
+  hw(0xbfc0071c) = 0x71e6c; // todo: to be tested on phat with 0x828e0
+  hw(0xbfc00704) = 0x1f;
   meSafeSync();
   
   hw(0xbfc00040 + 0x20) = 0x20090003;
@@ -38,13 +41,13 @@ static int mistRefreshMe (void* param) {
   hw(0xbfc00040 + 0x28) = 0;
   meSafeSync();
   
-  hw(0xbc10004c) |= 0x1434;
+  hw(0xbc10004c) |= 0x34;
   hw(0xbc10004c) = 0x0;
   meSafeSync();
+
   
-  hw(0xBC100070) |= 0x05;
-  meSafeSync();
-  
+  sceKernelCpuResumeIntrWithSync(intr);
+
   return 0;
 }
 
@@ -58,9 +61,9 @@ static int mistInjectSyscall (void* const param) {
   sceKernelDcacheWritebackRange(aligned.mem, 64);
   
   int state = sceKernelSuspendDispatchThread();
-  cleanSc2MeChannel();
+  cleanChannels();
   dmacplusFromSc((u32)aligned.mem, tableBase, DMACPLUS_BYTE_COUNT_4, 1);
-  waitSc2MeChannel();
+  waitChannels();
   sceKernelResumeDispatchThread(state);
     
   sceKernelFreePartitionMemory(aligned.uid);
