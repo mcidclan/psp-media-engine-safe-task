@@ -27,30 +27,28 @@ int meRunning = 0;
 int meThread(SceSize args, void *argp) {
   
   const int error = meSafeTaskMistInit();
-  if (error < 0) {
-    pspDebugScreenPrintf("cant't load kcall prx, error: %i", error);
-    sceKernelDelayThread(1000000);
-    sceKernelExitGame();
-  }
-  
-  MistInjector injector = {
-    SYSCALL_INDEX, 0x80000000 | (u32)mistTask
-  };
-  meSafeTaskMistInjectSyscall(&injector);
+  if (error >= 0) {
+    
+    meRunning = 1;
+    
+    MistInjector injector = {
+      SYSCALL_INDEX, 0x80000000 | (u32)mistTask
+    };
+    meSafeTaskMistInjectSyscall(&injector);
 
-  MistTrigger trigger = {
-    SYSCALL_INDEX, meCounter
-  };
-  
-  while (meRunning) {
+    MistTrigger trigger = {
+      SYSCALL_INDEX, meCounter
+    };
     
-    meSafeTaskMistTrigger(&trigger);
-    meSafeTaskWaitReady();
-    sceKernelDcacheWritebackInvalidateAll();
-    
-    sceKernelDelayThread(1);
+    while (meRunning) {
+      
+      meSafeTaskMistTrigger(&trigger);
+      meSafeTaskWaitReady();
+      sceKernelDcacheWritebackInvalidateAll();
+      
+      sceKernelDelayThread(1);
+    }
   }
-  
   return sceKernelExitDeleteThread(0);
 }
 
@@ -63,35 +61,35 @@ int main() {
   
   int thid = sceKernelCreateThread("me-thread", meThread, 0x18, 0x2000, PSP_THREAD_ATTR_VFPU, 0);
   if (thid >= 0) {
-    meRunning = 1;
     sceKernelStartThread(thid, 0, 0);
   }
   
   SceCtrlData ctl;
   u32 counter = 0;
   do {
-    
     sceCtrlPeekBufferPositive(&ctl, 1);
-
+    
     pspDebugScreenSetXY(0, 0);
     pspDebugScreenPrintf("meCounter: 0x%08lx", *meCounter);
     pspDebugScreenSetXY(0, 1);
     pspDebugScreenPrintf("scCounter: 0x%08lx", counter++);
+    
+    if (!meRunning) {
+      
+      pspDebugScreenSetXY(0, 2);
+      pspDebugScreenPrintf("ME thread not running, exiting...");
+      sceKernelDelayThread(1000000);
+      break;
+    }
     
     sceDisplayWaitVblank();
     sceKernelDelayThread(1);
   
   } while (!(ctl.Buttons & PSP_CTRL_HOME));
   
-  if (meRunning) {
-    
-    meRunning = 0;
-    SceUInt timeout = 500000;
-    int ret = sceKernelWaitThreadEnd(thid, &timeout);
-    if (ret < 0) {
-      sceKernelTerminateDeleteThread(thid);
-    }
-  }
+  SceUInt timeout = 500000;
+  sceKernelWaitThreadEnd(thid, &timeout);
+  sceKernelTerminateDeleteThread(thid);
   
   sceKernelExitGame();
   return 0;

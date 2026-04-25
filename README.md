@@ -11,6 +11,20 @@ A library to safely execute custom tasks on the Media Engine without disrupting 
 
 Note: Method 1 tested on Slim and Phat, Method 2 tested on Slim, should work on Phat, MIST Slim only for now.
 
+### Advantages and Methods
+
+The three methods **Classic**, **Mini**, and **MIST** share the same advantages:
+
+- `sleep` and `awake` are functional
+- Syscalls from SC to the ME are preserved
+- Tasks can be triggered through the SC threads
+- A `waitReady` sync function is available to ensure a previously triggered custom task has completed, other SC processes can be placed between the trigger and the task's end within the same thread
+- The `me-core` mapped functions are available and can be invoked, as well as `me-core-lib` functions
+
+> The **MIST** Method is also compatible with XMB, allowing custom tasks to be triggered over it.
+
+It remains possible to call the ME as a single parallel task with any of these methods, but you must ensure the loop is broken before any `sleep`/`awake` event or before making another syscall to the ME.
+
 ## Requirement
 - Clone and install psp-media-engine-custom-core library, see below.
 - Clone this repository, then build and install the library via cmake.
