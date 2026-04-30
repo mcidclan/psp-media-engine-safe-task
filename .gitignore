@@ -1,1 +1,3 @@
-build
+build/
+samples/usbhostfs_pc 
+
