@@ -23,16 +23,15 @@ int mistTask(int index, void* param) {
   return meSafeTaskMistFinish();
 }
 
-int meRunning = 0;
 int meThread(SceSize args, void *argp) {
   
+  int* const meStopped = (int*)*((int*)argp);
+
   const int error = meSafeTaskMistInit();
   if (error >= 0) {
     
-    meRunning = 1;
-    
     MistInjector injector = {
-      SYSCALL_INDEX, 0x80000000 | (u32)mistTask
+      SYSCALL_INDEX, CACHED_KERNEL_MASK | (u32)mistTask
     };
     meSafeTaskMistInjectSyscall(&injector);
 
@@ -40,7 +39,7 @@ int meThread(SceSize args, void *argp) {
       SYSCALL_INDEX, meCounter
     };
     
-    while (meRunning) {
+    while (!*meStopped) {
       
       meSafeTaskMistTrigger(&trigger);
       meSafeTaskWaitReady();
@@ -49,6 +48,7 @@ int meThread(SceSize args, void *argp) {
       sceKernelDelayThread(1);
     }
   }
+  *meStopped = 1;
   return sceKernelExitDeleteThread(0);
 }
 
@@ -59,9 +59,11 @@ int main() {
   scePowerSetClockFrequency(333, 333, 166);
   pspDebugScreenInit();
   
+  int meStopped = 0;
   int thid = sceKernelCreateThread("me-thread", meThread, 0x18, 0x2000, PSP_THREAD_ATTR_VFPU, 0);
   if (thid >= 0) {
-    sceKernelStartThread(thid, 0, 0);
+    int* param[1] = {&meStopped};
+    sceKernelStartThread(thid, sizeof(meStopped), &param);
   }
   
   SceCtrlData ctl;
@@ -74,11 +76,10 @@ int main() {
     pspDebugScreenSetXY(0, 1);
     pspDebugScreenPrintf("scCounter: 0x%08lx", counter++);
     
-    if (!meRunning) {
+    if (meStopped) {
       
       pspDebugScreenSetXY(0, 2);
       pspDebugScreenPrintf("ME thread not running, exiting...");
-      sceKernelDelayThread(1000000);
       break;
     }
     
@@ -87,6 +88,7 @@ int main() {
   
   } while (!(ctl.Buttons & PSP_CTRL_HOME));
   
+  meStopped = 1;
   SceUInt timeout = 500000;
   sceKernelWaitThreadEnd(thid, &timeout);
   sceKernelTerminateDeleteThread(thid);
