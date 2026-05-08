@@ -57,7 +57,7 @@ int meInit(int index, void* param) {
     u32* const top = (u32*)VME_TOP_BUFFERS;
     size = size / sizeof(values[0]);
     
-    for (int i = 0; i < 32; i++) {
+    for (int i = 0; i < size; i++) {
       top[i] = F2Q(input[i]);
     }
 

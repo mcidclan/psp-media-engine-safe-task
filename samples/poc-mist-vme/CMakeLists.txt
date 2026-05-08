@@ -20,5 +20,5 @@ target_link_libraries(vme-mist-poc
   psppower pspge pspdisplay pspctrl pspdebug pspkubridge
 )
 
-create_pbp_file(TARGET vme-mist-poc TITLE "VME DSP Dump" BUILD_PRX)
+create_pbp_file(TARGET vme-mist-poc TITLE "VME DSP PoC" BUILD_PRX)
 
