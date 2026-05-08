@@ -48,6 +48,10 @@ See samples directory.
 ## MIST
 see [here](MIST.md).
 
+## Code samples
+
+Code samples are available in the `samples` folder. You'll find a PoC sample for each method. Additionally, you'll find the first VME custom process ever made, processing data through the PSP DSP.
+
 ## Contribution Guidelines
 
 ### AI-assisted development
