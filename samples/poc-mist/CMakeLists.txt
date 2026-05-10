@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 set(CMAKE_TOOLCHAIN_FILE "$ENV{PSPDEV}/psp/share/pspdev.cmake" CACHE PATH "toolchain file")
-project(me-stask-mini C CXX ASM)
+project(me-stask-mist C CXX ASM)
 
 add_executable(me-stask-mist
   main.cpp
@@ -21,5 +21,5 @@ target_link_libraries(me-stask-mist
   pspkubridge
 )
 
-create_pbp_file(TARGET me-stask-mist TITLE "Me Safe Task Mini Poc" BUILD_PRX)
+create_pbp_file(TARGET me-stask-mist TITLE "Me Safe Task MIST Poc" BUILD_PRX)
 
