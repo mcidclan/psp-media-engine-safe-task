@@ -82,13 +82,13 @@ int meInit(int index, void* param) {
       vme_set(PE_0, BASE_SRC, VME_PFX_ROUTE);
       vme_set(PE_0, BASE_COUNT, VME_PFX_PARAM, count);
       
-      // tmp
       vme_set(PE_0, DST, VME_PFX_ROUTE, (6 << 16));
       vme_set(PE_0, DST_COUNT, VME_PFX_PARAM, count);
 
       // force update over local buffer with a 0x10 padding
+      // necessary to get the correct result from the first cycle
       vme_set(PE_0, DST_PARAM_2, 0x00020010);
-      vme_set(PE_0, DST_PARAM_3, 0x003b0000);
+      vme_set(PE_0, DST_PARAM_3, 0x00200000);
       
     }
     
@@ -101,13 +101,13 @@ int meInit(int index, void* param) {
       vme_set(PE_1, BASE_SRC, VME_PFX_ROUTE);
       vme_set(PE_1, BASE_COUNT, VME_PFX_PARAM, count);
       
-      // tmp
       vme_set(PE_1, DST, VME_PFX_ROUTE, (9 << 16));
       vme_set(PE_1, DST_COUNT, VME_PFX_PARAM, count);
       
       // force update over local buffer with a 0x10 padding
+      // necessary to get the correct result from the first cycle
       vme_set(PE_1, DST_PARAM_2, 0x00020010);
-      vme_set(PE_1, DST_PARAM_3, 0x003b0000);
+      vme_set(PE_1, DST_PARAM_3, 0x00200000);
     }
     
     
@@ -116,14 +116,13 @@ int meInit(int index, void* param) {
       const u32 op = 0x02010000;
       vme_set(PE_2, TOP_DESCRIPTOR, VME_BASE_1, op);
       
-      const int offset = 0xfff0; //-0x10
-      vme_set(PE_2, DST, VME_PFX_ROUTE, 0x60000, offset);
+      const int offset = 0xfff0; // cancel padding (-0x10)
+      vme_set(PE_2, DST, VME_PFX_ROUTE, (6 << 16), offset);
       vme_set(PE_2, DST_COUNT, VME_PFX_PARAM, count);
     }
     
     // End of the VME related code
     vmeLibFinish();
-
     vmeLibDisable();
   }
   
