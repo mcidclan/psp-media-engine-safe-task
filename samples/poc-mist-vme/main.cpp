@@ -68,8 +68,10 @@ int meInit(int index, void* param) {
 
     const u8  k = Q_FORMAT;
     const u32 b = F2Q(DEFAULT_FACTOR);
-    const int count = (size + 0x10) - 1;
     
+    const int prologue = 0x10;
+    const int count = (size + prologue) - 1;
+  
     {
       // r1 = (x * b) >> k
       const u32 op = 0x00204000;
@@ -85,10 +87,10 @@ int meInit(int index, void* param) {
       vme_set(PE_0, DST, VME_PFX_ROUTE, (6 << 16));
       vme_set(PE_0, DST_COUNT, VME_PFX_PARAM, count);
 
-      // force update over local buffer with a 0x10 padding
+      // force update over local buffer with a 0x10 prologue/padding
       // necessary to get the correct result from the first cycle
-      vme_set(PE_0, DST_PARAM_2, 0x00020010);
-      vme_set(PE_0, DST_PARAM_3, 0x00200000);
+      vme_set(PE_0, DST_PARAM_2, prologue);
+      vme_set(PE_0, DST_PARAM_3, VME_PFX_END_TOKEN);
       
     }
     
@@ -98,16 +100,16 @@ int meInit(int index, void* param) {
       vme_set(PE_1, TOP_DESCRIPTOR, VME_BASE_0, (0x04 << 24), op, k);
       vme_set(PE_1, TOP_REGISTER_B, b);
       
-      vme_set(PE_1, BASE_SRC, VME_PFX_ROUTE);
-      vme_set(PE_1, BASE_COUNT, VME_PFX_PARAM, count);
+      //vme_set(PE_1, BASE_SRC, VME_PFX_ROUTE);
+      //vme_set(PE_1, BASE_COUNT, VME_PFX_PARAM, count);
       
       vme_set(PE_1, DST, VME_PFX_ROUTE, (9 << 16));
       vme_set(PE_1, DST_COUNT, VME_PFX_PARAM, count);
       
-      // force update over local buffer with a 0x10 padding
+      // force update over local buffer with a 0x10 prologue/padding
       // necessary to get the correct result from the first cycle
-      vme_set(PE_1, DST_PARAM_2, 0x00020010);
-      vme_set(PE_1, DST_PARAM_3, 0x00200000);
+      vme_set(PE_1, DST_PARAM_2, prologue);
+      vme_set(PE_1, DST_PARAM_3, VME_PFX_END_TOKEN);
     }
     
     
@@ -116,7 +118,7 @@ int meInit(int index, void* param) {
       const u32 op = 0x02010000;
       vme_set(PE_2, TOP_DESCRIPTOR, VME_BASE_1, op);
       
-      const int offset = 0xfff0; // cancel padding (-0x10)
+      const int offset = 0x10000 - prologue; // cancel prologue/padding (-0x10)
       vme_set(PE_2, DST, VME_PFX_ROUTE, (6 << 16), offset);
       vme_set(PE_2, DST_COUNT, VME_PFX_PARAM, count);
     }
