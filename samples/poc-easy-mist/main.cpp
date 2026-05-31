@@ -1,0 +1,91 @@
+#include <pspctrl.h>
+#include <pspdisplay.h>
+#include <pspkernel.h>
+#include <psppower.h>
+#include <me-safe-task/me-stask-easy.h>
+
+PSP_MODULE_INFO("stask-demo-easy-mist", 0, 1, 1);
+PSP_HEAP_SIZE_KB(-1024);
+PSP_MAIN_THREAD_ATTR(PSP_THREAD_ATTR_VFPU | PSP_THREAD_ATTR_USER);
+
+u32 meCounter[16] __attribute__((aligned(64))) = {0};
+
+MistTrigger trigger = {
+  MIST_SYSCALL_INDEX_13, meCounter
+};
+
+MIST_TASK(mistTask, index, param, {
+  
+  meCoreDcacheInvalidateRange(param, 64);
+  u32* const meCounter = (u32*)param;
+  *meCounter += 1;
+  meCoreDcacheWritebackRange(param, 64);
+});
+
+int meThread(SceSize args, void *argp) {
+  
+  int* const meStopped = (int*)*((int*)argp);
+  while (!*meStopped) {
+    
+    meSafeTaskEasyMistTriggerAndWait(&trigger);
+    sceKernelDcacheWritebackInvalidateAll();
+    sceKernelDelayThread(1);
+  }
+  
+  *meStopped = 1;
+  return sceKernelExitDeleteThread(0);
+}
+
+int main() {
+  
+  scePowerSetClockFrequency(333, 333, 166);
+  pspDebugScreenInit();
+  
+  int thid;
+  int meStopped = 0;
+  
+  const int error = meSafeTaskEasyMistRegisterTrigger(&trigger, (u32)mistTask);
+  if (error >= 0) {
+    
+    thid = sceKernelCreateThread("me-thread", meThread, 0x18, 0x2000, PSP_THREAD_ATTR_VFPU, 0);
+    if (thid >= 0) {
+      int* param[1] = {&meStopped};
+      sceKernelStartThread(thid, sizeof(meStopped), &param);
+    }
+  }
+  
+  SceCtrlData ctl;
+  u32 counter = 0;
+  do {
+
+    sceCtrlPeekBufferPositive(&ctl, 1);
+    pspDebugScreenSetXY(0, 0);
+    pspDebugScreenPrintf("meCounter: 0x%08lx", *meCounter);
+    pspDebugScreenSetXY(0, 1);
+    pspDebugScreenPrintf("scCounter: 0x%08lx", counter++);
+    
+    if (meStopped) {
+      
+      pspDebugScreenSetXY(0, 2);
+      pspDebugScreenPrintf("ME thread not running, exiting...");
+      break;
+    }
+    
+    sceDisplayWaitVblank();
+    sceKernelDelayThread(1);
+  
+  } while (!(ctl.Buttons & PSP_CTRL_HOME));
+  
+  if (error >= 0) {
+
+    meStopped = 1;
+    SceUInt timeout = 500000;
+    sceKernelWaitThreadEnd(thid, &timeout);
+    sceKernelTerminateDeleteThread(thid);
+  }
+  
+  sceKernelExitGame();
+  return 0;
+}
+
+
