@@ -32,7 +32,7 @@ static int mistRefreshMe (void* param) {
   //hw(0xBC100050) |= 0x10;
   //meSafeSync();
   
-  hw(0xbfc0071c) = 0x71e6c; // todo: to be tested on phat with 0x828e0
+  hw(0xbfc0071c) = 0x71e6c; // todo: to be tested on phat with 0x828e0, 0x824dc
   hw(0xbfc00704) = 0x1f;
   meSafeSync();
   
@@ -103,7 +103,7 @@ static int init (const int table) {
       SYSCALL_TABLE_ADDR           = 0x003ce870;
       break;
     case ME_CORE_IMG_TABLE:
-      SYSCALL_TABLE_ADDR           = 0x003ce870; // todo: get/verify syscall table addr for img 
+      SYSCALL_TABLE_ADDR           = 0x0018a210; // todo: dump/verify syscall table addr for img 
       break;
     case ME_CORE_BL_IMG_TABLE:
       break;
