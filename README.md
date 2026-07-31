@@ -9,7 +9,7 @@ A library to safely execute custom tasks on the Media Engine without disrupting 
 - No manual soft reset is required, for the first method the first execution goes through a patch of getMeEDRAM, the second and MIST methods are self-sustained
 - Device sleep works properly as the base ME wrapper is not altered
 
-Note: Method 1 tested on Slim and Phat, Method 2 tested on Slim, should work on Phat, MIST Slim only for now.
+Note: Method 1 tested on Slim and Phat, Method 2 tested on Slim, should work on Phat, MIST tested on Slim and Phat.
 
 ### Advantages and Methods
 
