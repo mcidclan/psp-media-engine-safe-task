@@ -54,6 +54,10 @@ see [here](MIST.md).
 
 Code samples are available in the `samples` folder. You'll find a PoC sample for each method. Additionally, you'll find the first VME custom process ever made, processing data through the PSP DSP.
 
+## Technical Note
+
+This project uses custom code, original work that was not derived from reverse engineering. Please keep in mind that these implementations are based on the author's understanding of the hardware at the time the code was written.
+
 ## Contribution Guidelines
 
 ### AI-assisted development
