@@ -21,7 +21,7 @@ int name(int index, void* param) { \
   return meSafeTaskMistFinish(); \
 }
 
-int meSafeTaskEasyMistRegisterTrigger(MistTrigger* const trigger, const u32 task) {
+static inline int meSafeTaskEasyMistRegisterTrigger(MistTrigger* const trigger, const u32 task) {
 
   static int init = 0;
   
@@ -47,12 +47,12 @@ int meSafeTaskEasyMistRegisterTrigger(MistTrigger* const trigger, const u32 task
   return -1;
 }
 
-inline void meSafeTaskEasyMistTrigger(MistTrigger* const trigger) {
+static inline void meSafeTaskEasyMistTrigger(MistTrigger* const trigger) {
   
   meSafeTaskMistTrigger(trigger);
 }
 
-inline void meSafeTaskEasyMistTriggerAndWait(MistTrigger* const trigger) {
+static inline void meSafeTaskEasyMistTriggerAndWait(MistTrigger* const trigger) {
   
   meSafeTaskMistTrigger(trigger);
   meSafeTaskWaitReady();
