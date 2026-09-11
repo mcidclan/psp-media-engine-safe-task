@@ -210,7 +210,7 @@ int meThread(SceSize args, void *argp) {
       sceKernelDcacheWritebackRange(values, sizeof(values));
       
       meSafeTaskMistTrigger(&trigger);
-      meSafeTaskWaitReady();
+      meSafeTaskMistWait();
     }
     
     {
@@ -255,7 +255,7 @@ int meThread(SceSize args, void *argp) {
         sceKernelDcacheWritebackRange(meVars, sizeof(meVars));
         
         meSafeTaskMistTrigger(&trigger);
-        meSafeTaskWaitReady();
+        meSafeTaskMistWait();
         
         sceKernelDcacheWritebackInvalidateRange(meDataGen, BYTE_COUNT);
         sceKernelDcacheWritebackInvalidateRange(meDataOut, BYTE_COUNT);

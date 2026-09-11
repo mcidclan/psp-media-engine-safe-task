@@ -15,11 +15,29 @@
 
 #include <pspsysmem.h>
 
-#define meSafeSync() asm volatile("sync")
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define meSafeSync() asm volatile("sync")
+#define meSafeDelay() asm volatile("nop;nop;nop;nop;nop;nop;nop")
+
+#define meSafeDdrFlush(value) {  \
+                                 \
+  meSafeSync();                  \
+  hw(0xbd000004) = (value);      \
+  do {                           \
+    meSafeDelay();               \
+  } while (hw(0xbd000004) != 0); \
+  meSafeSync();                  \
+}
+
+#define meSafeEmitSoftInterrupt() { \
+                                    \
+  meSafeSync();                     \
+  hw(0xbc100044) = 1;               \
+  meSafeSync();                     \
+}
 
 typedef struct Aligned64 {
   

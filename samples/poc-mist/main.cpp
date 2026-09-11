@@ -54,7 +54,7 @@ int meThread(SceSize args, void *argp) {
     while (!*meStopped) {
       
       meSafeTaskMistTrigger(&trigger);
-      meSafeTaskWaitReady();
+      meSafeTaskMistWait();
       sceKernelDcacheWritebackInvalidateAll();
       
       sceKernelDelayThread(1);

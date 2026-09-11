@@ -55,5 +55,5 @@ static inline void meSafeTaskEasyMistTrigger(MistTrigger* const trigger) {
 static inline void meSafeTaskEasyMistTriggerAndWait(MistTrigger* const trigger) {
   
   meSafeTaskMistTrigger(trigger);
-  meSafeTaskWaitReady();
+  meSafeTaskMistWait();
 }

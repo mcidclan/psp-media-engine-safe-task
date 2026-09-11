@@ -162,17 +162,16 @@ static int waitMeReady() {
   return 0;
 }
 
+// Generic Trigger
 static inline void triggerSysCall(const u32 index) {
   
   hw(SYSCALL_PARAMS_BASE) = index;
-  hw(0xbd000004) = 5;
-  meCoreEmitSoftwareInterrupt();
-  //hw(0xbd000004) = 8;
-  //meSafeSync();
+  meSafeDdrFlush(5);
+  meSafeEmitSoftInterrupt();
+  //meSafeDdrFlush(8);
 }
 
 void meSafeKernelTaskTriggerCustomProcess() {
-  
   const u32 index = hw(SYSCALL_PARAMS_BASE);
   triggerSysCall(index);
 }
@@ -200,6 +199,7 @@ static int dispatchTask(void* task) {
   ((Task*)task)->index = SYSCALL_CUSTOM_INDEX;
   meSafeKernelTaskSetCurrentTask(task);
   meSafeKernelTaskTriggerCustomProcess();
+  
   return 0;
 }
 

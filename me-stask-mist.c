@@ -18,15 +18,17 @@
 #define CUSTOM_MAGIC_CHECK    0xC0FFEE
 #define SYSCALL_PARAMS_BASE   0xbfc00600
 
-#define ME_PROCESSING         (*_ME_SHARED_MEM)
-#define ME_CUSTOM_PROCESS     (1 << 1)
+//#define ME_PROCESSING         (*_ME_SHARED_MEM)
+//#define ME_CUSTOM_PROCESS     (1 << 1)
 
-extern int  _ME_SHARED_MEM[16];
+//extern int  _ME_SHARED_MEM[16];
 extern int  meSafeTaskSelectTable();
 extern int  meSafeKernelTaskSelectTable();
-extern void meSafeKernelTaskTriggerCustomProcess();
+//extern void meSafeKernelTaskTriggerCustomProcess();
 
-static u32 SYSCALL_TABLE_ADDR = 0; // 0x003ce870 on slim
+static u32 SYSCALL_TABLE_ADDR = 0;
+//static u32 SYSCALL_HANDLER_JUMP_ADDR = 0;
+#define SYSCALL_HANDLER_JUMP_ADDR 0x883004c0
 
 #if defined(PRX_FREE) && PRX_FREE
 
@@ -38,13 +40,13 @@ extern int kCall(FPCall const f, const unsigned int seg, void* const param);
 #endif
 
 static int mistRefreshMe (void* param) {
-  
+
   int intr = sceKernelCpuSuspendIntr();
 
   //hw(0xBC100050) |= 0x10;
   //meSafeSync();
   
-  hw(0xbfc0071c) = 0x71e6c; // todo: to be tested on phat with 0x828e0, 0x824dc
+  //hw(0xbfc0071c) = 0x71e6c; // todo: to be tested on phat with 0x828e0, 0x824dc
   hw(0xbfc00704) = 0x1f;
   meSafeSync();
   
@@ -53,13 +55,17 @@ static int mistRefreshMe (void* param) {
   hw(0xbfc00040 + 0x28) = 0;
   meSafeSync();
   
-  hw(0xbc10004c) |= 0x34;
+  //hw(0xBC100070) = 3;
+  //meSafeSync();
+
+  hw(0xbc10004c) |= 0x34; // 0x34;
+  meSafeSync();
+  
   hw(0xbc10004c) = 0x0;
   meSafeSync();
-
   
   sceKernelCpuResumeIntrWithSync(intr);
-
+    
   return 0;
 }
 
@@ -83,28 +89,28 @@ static int mistInjectSyscall (void* const param) {
 }
 
 static void meSafeKernelTaskMistSetCurrentTrigger(void* const trigger) {
-  
+    
   const MistTrigger* currentTrigger = (MistTrigger*)trigger;
   u32* param = (u32*)SYSCALL_PARAMS_BASE;
+  
   param[0] = (u32)currentTrigger->index;
+  param[1] = 0;
   param[2] = (u32)currentTrigger->index;
   param[3] = (u32)currentTrigger->param;
   param[4] = CUSTOM_MAGIC_CHECK;
+  param[5] = 0;
+  param[6] = 0;
+  param[7] = 0;
+  param[8] = 0;
+  param[9] = 0;
   
-  int intr = sceKernelCpuSuspendIntr();
-  ME_PROCESSING |= ME_CUSTOM_PROCESS;
-  sceKernelDcacheWritebackRange(&ME_PROCESSING, 64);
-  sceKernelCpuResumeIntrWithSync(intr);
-
-  sceKernelDcacheWritebackInvalidateRange(param, 16);
-  sceKernelIcacheInvalidateRange(param, 16);
-}
-
-static int mistTriggerTask (void* const trigger) {
+  //int intr = sceKernelCpuSuspendIntr();
+  //ME_PROCESSING |= ME_CUSTOM_PROCESS;
+  //sceKernelDcacheWritebackRange(&ME_PROCESSING, 64);
+  //sceKernelCpuResumeIntrWithSync(intr);
   
-  meSafeKernelTaskMistSetCurrentTrigger(trigger);
-  meSafeKernelTaskTriggerCustomProcess();
-  return 0;
+  //sceKernelDcacheWritebackInvalidateRange(param, 40);
+  //sceKernelIcacheInvalidateRange(param, 40);
 }
 
 static int init (const int table) {
@@ -113,9 +119,11 @@ static int init (const int table) {
     
     case ME_CORE_T2_IMG_TABLE:
       SYSCALL_TABLE_ADDR           = 0x003ce870;
+      //SYSCALL_HANDLER_JUMP_ADDR    = 0x883004c0;
       break;
     case ME_CORE_IMG_TABLE:
-      SYSCALL_TABLE_ADDR           = 0x0018a210; // todo: dump/verify syscall table addr for img 
+      SYSCALL_TABLE_ADDR           = 0x0018a210;
+      //SYSCALL_HANDLER_JUMP_ADDR    = 0x883004c0;
       break;
     case ME_CORE_BL_IMG_TABLE:
       break;
@@ -127,12 +135,35 @@ static int init (const int table) {
   return 0;
 }
 
+static inline void triggerSysCall(const u32 index) {
+
+  hw(0xbfc00700) = 0;
+  meSafeSync();
+  hw(SYSCALL_PARAMS_BASE) = index;
+  meSafeDdrFlush(5);
+  meSafeEmitSoftInterrupt();
+  //meSafeDdrFlush(8);
+}
+
+void meSafeKernelTaskMistTriggerCustomProcess() {
+  
+  const u32 index = hw(SYSCALL_PARAMS_BASE);
+  triggerSysCall(index);
+}
+
+static int mistTriggerTask (void* const trigger) {
+  
+  meSafeKernelTaskMistSetCurrentTrigger(trigger);
+  meSafeKernelTaskMistTriggerCustomProcess();
+  return 0;
+}
+
+
 // Refresh
 void meSafeTaskMistRefreshMe () {
   
   meSafeTaskCall(mistRefreshMe, NULL/*CACHED_KERNEL_MASK*/);
 }
-
 void meSafeKernelTaskMistRefreshMe() {
   
   mistRefreshMe(NULL);
@@ -173,8 +204,8 @@ void meSafeKernelTaskMistInjectSyscall(MistInjector* const injector) {
 // Trigger
 int meSafeTaskMistTrigger (MistTrigger* const trigger) {
   
-  
-  return kCall(mistTriggerTask, CACHED_KERNEL_MASK, (void*)trigger);
+  const int ret = kCall(mistTriggerTask, CACHED_KERNEL_MASK, (void*)trigger);
+  return ret;
 }
 
 int meSafeKernelTaskMistTrigger(MistTrigger* const trigger) {
@@ -185,9 +216,58 @@ int meSafeKernelTaskMistTrigger(MistTrigger* const trigger) {
 // Finish
 int meSafeTaskMistFinish() {
   
+  /*
   const u32 intr = meCoreInterruptClearMask();
   ME_PROCESSING &= ~ME_CUSTOM_PROCESS;
   meCoreDcacheWritebackRange((void*)_ME_SHARED_MEM, 64);
   meCoreInterruptSetMask(intr);
-  return 1;
+  */
+  
+  //hw(0xbfc00700) = -2;
+  //meLibSync();
+
+  asm volatile(
+  
+    ".set push;"
+    ".set noreorder;"
+    ".set volatile;"
+    ".set noat;"
+    "li $t0, 0xbfc00700;"
+    "li $t1, -567;"
+    "jr %0;"
+    "sw $t1, 0($t0);"
+    ".set pop;"
+    :
+    : "r" (SYSCALL_HANDLER_JUMP_ADDR)
+    : "$t0", "$t1", "memory"
+  );
+  
+  return 0;
+}
+
+static int mistWait() {
+
+  int out = 0;
+  while (1) {
+    
+    const int status = hw(0xbfc00700);
+    meSafeSync();
+    
+    if ((status == -567) || (++out > 500)) {
+      break;
+    }
+    sceKernelDelayThread(1000);
+  }
+  
+  return 0;
+}
+
+void meSafeKernelTaskMistWait() {
+  
+  mistWait();
+}
+
+void meSafeTaskMistWait() {
+  
+  kCall(mistWait, CACHED_KERNEL_MASK);
 }
