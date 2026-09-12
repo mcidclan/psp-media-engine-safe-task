@@ -31,13 +31,11 @@ typedef struct MistTrigger {
   void* param;
 } MistTrigger;
 
-void meSafeTaskMistRefreshMe();
 int  meSafeTaskMistInit();
 void meSafeTaskMistInjectSyscall (MistInjector* const injector);
 int  meSafeTaskMistTrigger(MistTrigger* const trigger);
 void meSafeTaskMistWait();
 
-void meSafeKernelTaskMistRefreshMe();
 int  meSafeKernelTaskMistInit();
 void meSafeKernelTaskMistInjectSyscall(MistInjector* const injector);
 int  meSafeKernelTaskMistTrigger(MistTrigger* const trigger);

@@ -28,7 +28,6 @@ static inline int meSafeTaskEasyMistRegisterTrigger(MistTrigger* const trigger, 
   if (!init) {
     
     init = -1;
-    meSafeTaskMistRefreshMe();
     
     const int error = meSafeTaskMistInit();
     if (error >= 0) {

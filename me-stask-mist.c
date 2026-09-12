@@ -22,8 +22,8 @@
 //#define ME_CUSTOM_PROCESS     (1 << 1)
 
 //extern int  _ME_SHARED_MEM[16];
-extern int  meSafeTaskSelectTable();
-extern int  meSafeKernelTaskSelectTable();
+//extern int  meSafeTaskSelectTable();
+//extern int  meSafeKernelTaskSelectTable();
 //extern void meSafeKernelTaskTriggerCustomProcess();
 
 static u32 SYSCALL_TABLE_ADDR = 0;
@@ -39,14 +39,36 @@ extern int kCall(FPCall const f, const unsigned int seg, void* const param);
 #define kCall kcall
 #endif
 
+static int mistSelectTable(void* const param) {
+  
+  const int tableId = meCoreGetTableIdFromWitnessWord();
+  if (tableId < 2) {
+    return -1;
+  }
+  meCoreSelectSystemTable(tableId);
+  return tableId;
+}
+
+static int meSafeKernelTaskMistSelectTable() {
+  
+  return mistSelectTable(NULL);
+}
+
+static int meSafeTaskMistSelectTable() {
+  
+  return meSafeTaskCall(mistSelectTable, NULL);
+}
+
 static int mistRefreshMe (void* param) {
 
+  //int state = sceKernelSuspendDispatchThread();
   int intr = sceKernelCpuSuspendIntr();
 
-  //hw(0xBC100050) |= 0x10;
-  //meSafeSync();
+  {
+    // todo: to be tested on phat with 0x828e0, 0x824dc
+    hw(0xbfc0071c) = 0x71e6c;
+  }
   
-  //hw(0xbfc0071c) = 0x71e6c; // todo: to be tested on phat with 0x828e0, 0x824dc
   hw(0xbfc00704) = 0x1f;
   meSafeSync();
   
@@ -58,14 +80,13 @@ static int mistRefreshMe (void* param) {
   //hw(0xBC100070) = 3;
   //meSafeSync();
 
-  hw(0xbc10004c) |= 0x34; // 0x34;
-  meSafeSync();
-  
+  hw(0xbc10004c) |= 0x34;
   hw(0xbc10004c) = 0x0;
   meSafeSync();
   
   sceKernelCpuResumeIntrWithSync(intr);
-    
+  //sceKernelResumeDispatchThread(state);
+
   return 0;
 }
 
@@ -160,11 +181,12 @@ static int mistTriggerTask (void* const trigger) {
 
 
 // Refresh
-void meSafeTaskMistRefreshMe () {
+static void meSafeTaskMistRefreshMe () {
   
   meSafeTaskCall(mistRefreshMe, NULL/*CACHED_KERNEL_MASK*/);
 }
-void meSafeKernelTaskMistRefreshMe() {
+
+static void meSafeKernelTaskMistRefreshMe() {
   
   mistRefreshMe(NULL);
 }
@@ -172,21 +194,23 @@ void meSafeKernelTaskMistRefreshMe() {
 // Init
 int meSafeTaskMistInit () {
   
-  const int table = meSafeTaskSelectTable();
+  const int table = meSafeTaskMistSelectTable();
   int error = init(table);
   if (error) {
     return error;
   }
+  meSafeTaskMistRefreshMe();
   return 0;
 }
 
 int meSafeKernelTaskMistInit () {
   
-  const int table = meSafeKernelTaskSelectTable();
+  const int table = meSafeKernelTaskMistSelectTable();
   int error = init(table);
   if (error) {
     return error;
   }
+  meSafeKernelTaskMistRefreshMe();
   return 0;
 }
 

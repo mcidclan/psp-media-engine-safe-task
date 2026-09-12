@@ -195,95 +195,97 @@ int meRun(int index, void* param) {
 }
 
 int meThread(SceSize args, void *argp) {
-  
-  int* const meStopped = (int*)*((int*)argp);
 
-  const int error = meSafeTaskMistInit();
-  if (error >= 0) {
+  {
+    MistInjector injector = {
+      ME_SYSCALL_INDEX_0, CACHED_KERNEL_MASK | (u32)meInit
+    };
+    meSafeTaskMistInjectSyscall(&injector);
+    MistTrigger trigger = { ME_SYSCALL_INDEX_0, (void*)values };
+    sceKernelDcacheWritebackRange(values, sizeof(values));
+    
+    meSafeTaskMistTrigger(&trigger);
+    meSafeTaskMistWait();
+  }
   
-    {
-      MistInjector injector = {
-        ME_SYSCALL_INDEX_0, CACHED_KERNEL_MASK | (u32)meInit
-      };
-      meSafeTaskMistInjectSyscall(&injector);
-      MistTrigger trigger = { ME_SYSCALL_INDEX_0, (void*)values };
-      sceKernelDcacheWritebackRange(values, sizeof(values));
+  {
+    MistInjector injector = {
+      ME_SYSCALL_INDEX_1, CACHED_KERNEL_MASK | (u32)meRun
+    };
+    meSafeTaskMistInjectSyscall(&injector);
+  }
+
+  const MeShared shared = {meDataGen, meDataOut, meVars};
+  MistTrigger trigger = {
+    ME_SYSCALL_INDEX_1, (void*)&shared
+  };
+  sceKernelDcacheWritebackRange(&shared, sizeof(shared));
+  
+  bool up = false;
+  float lastFactor = 0.0f;
+
+  SceCtrlData ctl;
+  int* const meStopped = (int*)*((int*)argp);
+  
+  while (!*meStopped) {
+    
+    sceCtrlPeekBufferPositive(&ctl, 1);
+    
+    if (!(ctl.Buttons & PSP_CTRL_TRIANGLE) && !(ctl.Buttons & PSP_CTRL_CROSS)) {
+      
+      up = true;
+    } else if (up) {
+  
+      if (ctl.Buttons & PSP_CTRL_TRIANGLE) {
+          factor = (factor + 0.1f > 1.0f) ? 1.0f : factor + 0.1f;
+          up = false;
+      }
+      else if (ctl.Buttons & PSP_CTRL_CROSS) {
+          factor = (factor - 0.1f < 0.1f) ? 0.1f : factor - 0.1f;
+          up = false;
+      }
+    }
+    
+    if (lastFactor != factor) {
+      
+      getB(factor, &meVars[0], &meVars[1]);
+      sceKernelDcacheWritebackRange(meVars, sizeof(meVars));
       
       meSafeTaskMistTrigger(&trigger);
       meSafeTaskMistWait();
-    }
-    
-    {
-      MistInjector injector = {
-        ME_SYSCALL_INDEX_1, CACHED_KERNEL_MASK | (u32)meRun
-      };
-      meSafeTaskMistInjectSyscall(&injector);
-    }
-  
-    const MeShared shared = {meDataGen, meDataOut, meVars};
-    MistTrigger trigger = {
-      ME_SYSCALL_INDEX_1, (void*)&shared
-    };
-    sceKernelDcacheWritebackRange(&shared, sizeof(shared));
-    
-    bool up = false;
-    float lastFactor = 0.0f;
-    
-    SceCtrlData ctl;
-    while (!*meStopped) {
       
-      sceCtrlPeekBufferPositive(&ctl, 1);
-    
-      if (!(ctl.Buttons & PSP_CTRL_TRIANGLE) && !(ctl.Buttons & PSP_CTRL_CROSS)) {
-        
-        up = true;
-      } else if (up) {
-    
-        if (ctl.Buttons & PSP_CTRL_TRIANGLE) {
-            factor = (factor + 0.1f > 1.0f) ? 1.0f : factor + 0.1f;
-            up = false;
-        }
-        else if (ctl.Buttons & PSP_CTRL_CROSS) {
-            factor = (factor - 0.1f < 0.1f) ? 0.1f : factor - 0.1f;
-            up = false;
-        }
-      }
-      
-      if (lastFactor != factor) {
-        
-        getB(factor, &meVars[0], &meVars[1]);
-        sceKernelDcacheWritebackRange(meVars, sizeof(meVars));
-        
-        meSafeTaskMistTrigger(&trigger);
-        meSafeTaskMistWait();
-        
-        sceKernelDcacheWritebackInvalidateRange(meDataGen, BYTE_COUNT);
-        sceKernelDcacheWritebackInvalidateRange(meDataOut, BYTE_COUNT);
-        sceKernelDcacheInvalidateRange(meVars, sizeof(meVars));
+      sceKernelDcacheWritebackInvalidateRange(meDataGen, BYTE_COUNT);
+      sceKernelDcacheWritebackInvalidateRange(meDataOut, BYTE_COUNT);
+      sceKernelDcacheInvalidateRange(meVars, sizeof(meVars));
 
-        lastFactor = factor;
-      }
-      sceKernelDelayThread(1);
+      lastFactor = factor;
     }
+    sceKernelDelayThread(1);
   }
+  
   *meStopped = 1;
   return sceKernelExitDeleteThread(0);
 }
 
 int main() {
-  
-  meSafeTaskMistRefreshMe();
-  
+    
   scePowerSetClockFrequency(333, 333, 166);
   pspDebugScreenInit();
   
+  int thid = -1;
   int meStopped = 0;
-  int thid = sceKernelCreateThread("me-thread",
-    meThread, 0x18, 0x2000, PSP_THREAD_ATTR_VFPU, 0);
   
-  if (thid >= 0) {
-    int* param[1] = {&meStopped};
-    sceKernelStartThread(thid, sizeof(meStopped), &param);
+  const int error = meSafeTaskMistInit();
+  if (error >= 0) {
+    
+    thid = sceKernelCreateThread("me-thread", meThread, 0x18, 0x2000, PSP_THREAD_ATTR_VFPU, 0);
+    if (thid >= 0) {
+      int* param[1] = { &meStopped };
+      sceKernelStartThread(thid, sizeof(meStopped), &param);
+    }
+  }
+  else {
+    meStopped = 1;
   }
   
   SceCtrlData ctl;
@@ -329,11 +331,13 @@ int main() {
     pspDebugScreenSetXY(0, 33);
     pspDebugScreenPrintf("ME thread not running, exiting...");
   }
-  meStopped = 1;
-  SceUInt timeout = 500000;
-  sceKernelWaitThreadEnd(thid, &timeout);
-  sceKernelTerminateDeleteThread(thid);
   
+  if (thid >= 0) {
+    
+    SceUInt timeout = 500000;
+    sceKernelWaitThreadEnd(thid, &timeout);
+    sceKernelTerminateDeleteThread(thid);
+  }
   sceKernelExitGame();
   return 0;
 }
