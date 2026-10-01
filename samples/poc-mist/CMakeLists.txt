@@ -15,8 +15,7 @@ target_compile_options(me-stask-mist PRIVATE
 )
 
 target_link_libraries(me-stask-mist
-  me-core-mapper
-  -Wl,--start-group me-core-lib me-stask -Wl,--end-group
+  me-core-mapper me-stask
   psppower pspge pspdisplay pspctrl pspdebug
   pspkubridge
 )

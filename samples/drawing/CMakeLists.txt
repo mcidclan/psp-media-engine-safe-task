@@ -15,8 +15,7 @@ target_compile_options(me-drawing-demo PRIVATE
 )
 
 target_link_libraries(me-drawing-demo
-  me-core-mapper
-  -Wl,--start-group me-core-lib me-stask -Wl,--end-group
+  me-core-mapper me-stask
   psppower pspge pspdisplay pspctrl pspdebug pspaudiocodec
   pspkubridge
 )

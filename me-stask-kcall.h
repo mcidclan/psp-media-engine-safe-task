@@ -13,7 +13,7 @@
 #ifndef ME_SAFE_TASK_KCALL_H
 #define ME_SAFE_TASK_KCALL_H
 
-#include <me-core-mapper/kernel/kcall.h>
+#include "./kernel/kcall-prx.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,7 +29,7 @@ int kCall(FCall const f, const unsigned int seg);
 int kCall(FPCall const f, const unsigned int seg, void* const param);
 #else
 
-#define kCall kcall
+#define kCall kCallPrx
 #endif
 
 #ifdef __cplusplus

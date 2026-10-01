@@ -36,7 +36,7 @@ extern int kCall(FCall const f, const unsigned int seg);
 extern int kCall(FPCall const f, const unsigned int seg, void* const param);
 #else
 
-#define kCall kcall
+#define kCall kCallPrx
 #endif
 
 static int mistSelectTable(void* const param) {

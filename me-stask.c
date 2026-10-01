@@ -34,11 +34,11 @@ const u32 ME_PROCESSES = ME_COMMON_PROCESS | ME_CUSTOM_PROCESS;
 
 #if defined(PRX_FREE) && PRX_FREE
 
-extern int kCall(FCall const f, const unsigned int seg);
-extern int kCall(FPCall const f, const unsigned int seg, void* const param);
+extern int kCallPrx(FCall const f, const unsigned int seg);
+extern int kCallPrx(FPCall const f, const unsigned int seg, void* const param);
 #else
 
-#define kCall kcall
+#define kCall kCallPrx
 #endif
 
 /*
