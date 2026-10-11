@@ -1,3 +1,6 @@
+> [!WARNING]
+> This repository is no longer maintained. Please use [psp-media-engine-mist](https://github.com/mcidclan/psp-media-engine-mist) instead.
+
 ## PSP Media Engine Safe Task Library
 A library to safely execute custom tasks on the Media Engine without disrupting syscalls dispatched to it by the SC.  
 
